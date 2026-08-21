@@ -23,7 +23,7 @@ export default function HomePage() {
         </p>
         <div className="mt-8">
           <Button asChild>
-            <Link href="/auth/sign-in">
+            <Link href="/login">
               Ingresar al equipo <ArrowRight aria-hidden="true" />
             </Link>
           </Button>

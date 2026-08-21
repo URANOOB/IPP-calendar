@@ -34,6 +34,66 @@ export type Database = {
   }
   public: {
     Tables: {
+      class_reminders: {
+        Row: {
+          attempts: number
+          class_id: string
+          created_at: string
+          id: string
+          last_error: string | null
+          recipient_profile_id: string
+          reminder_type: Database["public"]["Enums"]["class_reminder_type"]
+          resend_email_id: string | null
+          scheduled_for: string
+          sent_at: string | null
+          status: Database["public"]["Enums"]["class_reminder_status"]
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          class_id: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          recipient_profile_id: string
+          reminder_type: Database["public"]["Enums"]["class_reminder_type"]
+          resend_email_id?: string | null
+          scheduled_for: string
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["class_reminder_status"]
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          class_id?: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          recipient_profile_id?: string
+          reminder_type?: Database["public"]["Enums"]["class_reminder_type"]
+          resend_email_id?: string | null
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["class_reminder_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_reminders_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_reminders_recipient_profile_id_fkey"
+            columns: ["recipient_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       classes: {
         Row: {
           capacity: number
@@ -90,6 +150,48 @@ export type Database = {
             columns: ["teacher_id"]
             isOneToOne: false
             referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_events: {
+        Row: {
+          actor_profile_id: string | null
+          created_at: string
+          event_type: Database["public"]["Enums"]["contact_event_type"]
+          guardian_id: string
+          id: string
+          metadata: Json
+        }
+        Insert: {
+          actor_profile_id?: string | null
+          created_at?: string
+          event_type: Database["public"]["Enums"]["contact_event_type"]
+          guardian_id: string
+          id?: string
+          metadata?: Json
+        }
+        Update: {
+          actor_profile_id?: string | null
+          created_at?: string
+          event_type?: Database["public"]["Enums"]["contact_event_type"]
+          guardian_id?: string
+          id?: string
+          metadata?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_events_actor_profile_id_fkey"
+            columns: ["actor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_events_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians"
             referencedColumns: ["id"]
           },
         ]
@@ -210,6 +312,8 @@ export type Database = {
       }
       registrations: {
         Row: {
+          attendance_marked_at: string | null
+          attendance_marked_by: string | null
           class_id: string
           confirmed_at: string | null
           created_at: string
@@ -220,6 +324,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          attendance_marked_at?: string | null
+          attendance_marked_by?: string | null
           class_id: string
           confirmed_at?: string | null
           created_at?: string
@@ -230,6 +336,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          attendance_marked_at?: string | null
+          attendance_marked_by?: string | null
           class_id?: string
           confirmed_at?: string | null
           created_at?: string
@@ -240,6 +348,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "registrations_attendance_marked_by_fkey"
+            columns: ["attendance_marked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "registrations_class_matches_cycle_fkey"
             columns: ["class_id", "cycle_id"]
@@ -328,10 +443,12 @@ export type Database = {
       }
       weekly_cycles: {
         Row: {
+          closed_at: string | null
           created_at: string
           ends_at: string
           id: string
           name: string
+          opened_at: string | null
           registration_closes_at: string
           registration_opens_at: string
           starts_at: string
@@ -339,10 +456,12 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          closed_at?: string | null
           created_at?: string
           ends_at: string
           id?: string
           name: string
+          opened_at?: string | null
           registration_closes_at: string
           registration_opens_at: string
           starts_at: string
@@ -350,10 +469,12 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          closed_at?: string | null
           created_at?: string
           ends_at?: string
           id?: string
           name?: string
+          opened_at?: string | null
           registration_closes_at?: string
           registration_opens_at?: string
           starts_at?: string
@@ -367,19 +488,129 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_teacher_candidates: {
+        Args: never
+        Returns: {
+          email: string
+          full_name: string
+          profile_id: string
+        }[]
+      }
+      admin_teacher_directory: {
+        Args: never
+        Returns: {
+          active: boolean
+          display_name: string
+          email: string
+          full_name: string
+          profile_id: string
+          teacher_id: string
+        }[]
+      }
+      book_guardian_classes: {
+        Args: { selections: Json; token_hash: string }
+        Returns: undefined
+      }
+      claim_due_class_reminders: {
+        Args: { p_now?: string }
+        Returns: {
+          class_ends_at: string
+          class_id: string
+          class_starts_at: string
+          class_title: string
+          guardian_count: number
+          recipient_email: string
+          recipient_name: string
+          reminder_id: string
+          reminder_type: Database["public"]["Enums"]["class_reminder_type"]
+          student_count: number
+          teacher_name: string
+        }[]
+      }
+      complete_class_reminder: {
+        Args: { reminder_id: string; resend_email_id: string }
+        Returns: undefined
+      }
       current_teacher_id: { Args: never; Returns: string }
       current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      fail_class_reminder: {
+        Args: { error_message: string; reminder_id: string }
+        Returns: undefined
+      }
+      get_guardian_meeting_access: {
+        Args: {
+          requested_class_id: string
+          requested_student_id: string
+          token_hash: string
+        }
+        Returns: string
+      }
+      get_guardian_registration_context: {
+        Args: { token_hash: string }
+        Returns: {
+          classes: Json
+          cycle_id: string
+          cycle_name: string
+          cycle_status: Database["public"]["Enums"]["weekly_cycle_status"]
+          guardian_name: string
+          registration_open: boolean
+          students: Json
+        }[]
+      }
+      get_guardian_waiting_room: {
+        Args: { token_hash: string }
+        Returns: {
+          classes: Json
+          guardian_name: string
+        }[]
+      }
+      invoke_class_reminder_function: { Args: never; Returns: undefined }
       is_admin: { Args: never; Returns: boolean }
       is_contact_manager: { Args: never; Returns: boolean }
       is_internal_user: { Args: never; Returns: boolean }
+      record_class_attendance: {
+        Args: { p_class_id: string; p_entries: Json }
+        Returns: undefined
+      }
+      registration_consumes_capacity: {
+        Args: { p_status: Database["public"]["Enums"]["registration_status"] }
+        Returns: boolean
+      }
+      resolve_guardian_access_token: {
+        Args: { token_hash: string }
+        Returns: {
+          guardian_name: string
+          students: Json
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "teacher" | "contact_manager"
+      class_reminder_status:
+        | "pending"
+        | "processing"
+        | "sent"
+        | "failed"
+        | "cancelled"
+      class_reminder_type:
+        | "teacher_24h"
+        | "teacher_3h"
+        | "manager_24h"
+        | "manager_3h"
       class_status: "draft" | "published" | "cancelled" | "completed"
       contact_attendance_status: "not_recorded" | "attended" | "did_not_attend"
+      contact_event_type:
+        | "contacted"
+        | "invitation_sent"
+        | "response_updated"
+        | "booking_created"
+        | "whatsapp_opened"
+        | "attendance_updated"
+        | "note_added"
+        | "manager_assigned"
       contact_response_status:
         | "not_contacted"
         | "contacted"
@@ -525,8 +756,31 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "teacher", "contact_manager"],
+      class_reminder_status: [
+        "pending",
+        "processing",
+        "sent",
+        "failed",
+        "cancelled",
+      ],
+      class_reminder_type: [
+        "teacher_24h",
+        "teacher_3h",
+        "manager_24h",
+        "manager_3h",
+      ],
       class_status: ["draft", "published", "cancelled", "completed"],
       contact_attendance_status: ["not_recorded", "attended", "did_not_attend"],
+      contact_event_type: [
+        "contacted",
+        "invitation_sent",
+        "response_updated",
+        "booking_created",
+        "whatsapp_opened",
+        "attendance_updated",
+        "note_added",
+        "manager_assigned",
+      ],
       contact_response_status: [
         "not_contacted",
         "contacted",

@@ -42,31 +42,31 @@ begin
   values (v_student_id, v_guardian_id, 'Estudiante de prueba');
 
   insert into public.weekly_cycles (id, name, starts_at, ends_at, registration_opens_at, registration_closes_at)
-  values (v_cycle_a_id, 'Ciclo de prueba A', now() + interval '7 days', now() + interval '14 days', now(), now() + interval '6 days');
+  values (v_cycle_a_id, 'Ciclo de prueba A', now() + interval '100 years 7 days', now() + interval '100 years 14 days', now() + interval '100 years', now() + interval '100 years 6 days');
 
   begin
     insert into public.weekly_cycles (name, starts_at, ends_at, registration_opens_at, registration_closes_at)
-    values ('Ciclo inválido', now(), now() - interval '7 days', now(), now() - interval '1 hour');
+    values ('Ciclo inválido', now() + interval '100 years', now() + interval '100 years -7 days', now() + interval '100 years', now() + interval '100 years -1 hour');
     raise exception 'Expected invalid cycle dates to fail';
   exception when check_violation then null;
   end;
 
   begin
     insert into public.classes (cycle_id, teacher_id, title, starts_at, ends_at, capacity)
-    values (v_cycle_a_id, v_teacher_id, 'Sin cupos', now(), now() + interval '1 hour', 0);
+    values (v_cycle_a_id, v_teacher_id, 'Sin cupos', now() + interval '100 years 8 days', now() + interval '100 years 8 days 1 hour', 0);
     raise exception 'Expected zero class capacity to fail';
   exception when check_violation then null;
   end;
 
   begin
     insert into public.classes (cycle_id, teacher_id, title, starts_at, ends_at, capacity)
-    values (v_cycle_a_id, v_teacher_id, 'Horario inválido', now(), now() - interval '1 hour', 10);
+    values (v_cycle_a_id, v_teacher_id, 'Horario inválido', now() + interval '100 years 8 days', now() + interval '100 years 7 days', 10);
     raise exception 'Expected reversed class dates to fail';
   exception when check_violation then null;
   end;
 
   insert into public.classes (id, cycle_id, teacher_id, title, starts_at, ends_at, capacity)
-  values (v_class_a_id, v_cycle_a_id, v_teacher_id, 'Clase de prueba A', now() + interval '8 days', now() + interval '8 days 1 hour', 10);
+  values (v_class_a_id, v_cycle_a_id, v_teacher_id, 'Clase de prueba A', now() + interval '100 years 8 days', now() + interval '100 years 8 days 1 hour', 10);
 
   insert into public.registrations (student_id, class_id, cycle_id, status)
   values (v_student_id, v_class_a_id, v_cycle_a_id, 'pending');
@@ -79,9 +79,9 @@ begin
   end;
 
   insert into public.weekly_cycles (id, name, starts_at, ends_at, registration_opens_at, registration_closes_at)
-  values (v_cycle_b_id, 'Ciclo de prueba B', now() + interval '14 days', now() + interval '21 days', now() + interval '7 days', now() + interval '13 days');
+  values (v_cycle_b_id, 'Ciclo de prueba B', now() + interval '100 years 14 days', now() + interval '100 years 21 days', now() + interval '100 years 7 days', now() + interval '100 years 13 days');
   insert into public.classes (id, cycle_id, teacher_id, title, starts_at, ends_at, capacity)
-  values (v_class_b_id, v_cycle_b_id, v_teacher_id, 'Clase de prueba B', now() + interval '15 days', now() + interval '15 days 1 hour', 10);
+  values (v_class_b_id, v_cycle_b_id, v_teacher_id, 'Clase de prueba B', now() + interval '100 years 15 days', now() + interval '100 years 15 days 1 hour', 10);
   insert into public.registrations (student_id, class_id, cycle_id, status)
   values (v_student_id, v_class_b_id, v_cycle_b_id, 'pending');
 end;

@@ -4,15 +4,30 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BookOpen, Menu, PanelLeftClose, X } from "lucide-react";
 import { useState } from "react";
+import { useFormStatus } from "react-dom";
 
-import { dashboardNavigation } from "@/config/navigation";
+import { signOut } from "@/app/(dashboard)/dashboard/actions";
+import { navigationForRole } from "@/config/navigation";
+import type { InternalUser } from "@/lib/auth/user";
+import { ROLE_LABELS } from "@/lib/constants/roles";
 import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
 
-export function DashboardShell({ children }: Readonly<{ children: React.ReactNode }>) {
+function LogoutButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button disabled={pending} type="submit" variant="outline">
+      {pending ? "Cerrando…" : "Cerrar sesión"}
+    </Button>
+  );
+}
+
+export function DashboardShell({ children, user }: Readonly<{ children: React.ReactNode; user: InternalUser }>) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const navigation = navigationForRole(user.role);
 
   return (
     <div className="min-h-screen bg-background lg:grid lg:grid-cols-[16rem_1fr]">
@@ -43,7 +58,7 @@ export function DashboardShell({ children }: Readonly<{ children: React.ReactNod
           </Button>
         </div>
         <nav className="flex-1 space-y-1 p-3">
-          {dashboardNavigation.map((item) => {
+          {navigation.map((item) => {
             const isActive = item.href === "/dashboard" ? pathname === item.href : pathname.startsWith(item.href);
             const Icon = item.icon;
             return (
@@ -69,8 +84,14 @@ export function DashboardShell({ children }: Readonly<{ children: React.ReactNod
           <Button aria-label="Abrir navegación" className="lg:hidden" onClick={() => setMobileOpen(true)} size="icon" variant="ghost">
             <Menu aria-hidden="true" />
           </Button>
-          <span className="ml-2 text-sm font-medium text-muted-foreground lg:ml-0">Administración</span>
-          <PanelLeftClose aria-hidden="true" className="ml-auto hidden size-4 text-muted-foreground lg:block" />
+          <div className="ml-2 min-w-0 lg:ml-0">
+            <p className="truncate text-sm font-semibold">{user.fullName}</p>
+            <p className="text-xs text-muted-foreground">{ROLE_LABELS[user.role]}</p>
+          </div>
+          <PanelLeftClose aria-hidden="true" className="ml-auto mr-3 hidden size-4 text-muted-foreground lg:block" />
+          <form action={signOut}>
+            <LogoutButton />
+          </form>
         </header>
         <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">{children}</main>
       </div>
