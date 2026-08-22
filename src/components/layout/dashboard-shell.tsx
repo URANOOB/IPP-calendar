@@ -51,11 +51,14 @@ export function DashboardShell({ activity, children, user }: Readonly<{ activity
         )}
       >
         <div className="flex h-20 items-center justify-between border-b border-white/20 px-5">
-          <Link className="flex items-center gap-2.5 font-extrabold tracking-tight text-white" href="/dashboard" onClick={() => setMobileOpen(false)}>
-            <span className="grid size-11 place-items-center overflow-hidden rounded-xl border border-white/35 bg-white/95 p-0.5 shadow-sm">
+          <Link className="flex items-center gap-3 font-extrabold tracking-tight text-white" href="/dashboard" onClick={() => setMobileOpen(false)}>
+            <span className="grid size-14 place-items-center overflow-hidden rounded-xl border border-white/35 bg-white/95 p-0.5 shadow-sm">
               <Image alt="Inglés pa' la Paz" className="size-full object-contain" height={600} priority src="/images/logo-ipp.png" width={800} />
             </span>
-            <span>IPP<small className="ml-1 text-[10px] font-semibold text-white/75">agenda</small></span>
+            <div className="flex flex-col leading-tight">
+              <span className="text-lg">IPP agenda</span>
+              <span className="text-xs font-medium text-white/70 capitalize">{user.role}</span>
+            </div>
           </Link>
           <Button aria-label="Cerrar navegación" className="text-white hover:bg-white/15 hover:text-white lg:hidden" onClick={() => setMobileOpen(false)} size="icon" variant="ghost">
             <X aria-hidden="true" />
@@ -68,7 +71,7 @@ export function DashboardShell({ activity, children, user }: Readonly<{ activity
             return (
               <Link
                 className={cn(
-                  "flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-semibold text-white/75 transition-colors hover:bg-white/14 hover:text-white",
+                  "flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-semibold text-white/90 transition-colors hover:bg-white/14 hover:text-white",
                   isActive && "bg-white/95 text-indigo-600 shadow-[0_10px_24px_rgba(27,79,169,0.18)] hover:bg-white hover:text-indigo-600",
                 )}
                 href={item.href}

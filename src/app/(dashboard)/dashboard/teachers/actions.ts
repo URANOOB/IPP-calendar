@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireDashboardRoute } from "@/lib/auth/authorization";
+import { requireRole } from "@/lib/auth/user";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 
@@ -23,7 +24,7 @@ export type TeacherActionResult = { success: true } | { success: false; error: s
 export async function createTeacher(values: unknown): Promise<TeacherActionResult> {
   await requireDashboardRoute("/dashboard/teachers"); const parsed = createTeacherSchema.safeParse(values); if (!parsed.success) return { success: false, error: "Selecciona un usuario y un nombre válido." };
   const supabase = await createClient(); const { error } = await supabase.from("teachers").insert({ profile_id: parsed.data.profileId, display_name: parsed.data.displayName, notification_email: parsed.data.notificationEmail || null, available_days: parsed.data.availableDays, available_from: parsed.data.availableFrom || null, available_until: parsed.data.availableUntil || null });
-  if (error?.code === "23505") return { success: false, error: "Este usuario ya está asociado a un profesor." }; if (error) return { success: false, error: "No fue posible crear el profesor. Verifica que el perfil tenga rol de profesor." };
+  if (error?.code === "23505") return { success: false, error: "Este usuario ya está asociado a un profesor." }; if (error) return { success: false, error: "No fue posible crear el profesor. Verifica que el perfil exista y esté activo." };
   revalidatePath("/dashboard/teachers"); revalidatePath("/dashboard/classes"); return { success: true };
 }
 
@@ -65,7 +66,7 @@ export async function uploadTeacherAvatar(teacherId: string, formData: FormData)
 }
 
 export async function deleteTeacher(teacherId: string): Promise<TeacherActionResult> {
-  await requireDashboardRoute("/dashboard/teachers"); const parsed = z.string().uuid().safeParse(teacherId); if (!parsed.success) return { success: false, error: "El profesor seleccionado no es válido." };
+  await requireRole("admin"); const parsed = z.string().uuid().safeParse(teacherId); if (!parsed.success) return { success: false, error: "El profesor seleccionado no es válido." };
   const supabase = await createClient(); const { data: teacher } = await supabase.from("teachers").select("avatar_path").eq("id", parsed.data).maybeSingle();
   const { error } = await supabase.rpc("delete_teacher", { p_teacher_id: parsed.data });
   if (error) return { success: false, error: "No fue posible eliminar el profesor, sus clases y su cuenta." };

@@ -7,8 +7,7 @@ if (!url || !serviceRoleKey) throw new Error("SUPABASE_URL y SUPABASE_SERVICE_RO
 const admin = createClient(url, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
 const users = [
   { username: "admin", password: "ippadmin123", role: "admin", fullName: "Administrador IPP" },
-  { username: "profe", password: "ippprofe123", role: "teacher", fullName: "Profesor demo" },
-  { username: "gestor", password: "ippgestor123", role: "contact_manager", fullName: "Gestor demo" },
+  { username: "gestor", password: "ippgestor123", role: "manager", fullName: "Gestor demo" },
 ];
 
 for (const entry of users) {
@@ -26,9 +25,5 @@ for (const entry of users) {
   }
   const { error: profileError } = await admin.from("profiles").upsert({ id: user.id, role: entry.role, full_name: entry.fullName, active: true });
   if (profileError) throw profileError;
-  if (entry.role === "teacher") {
-    const { error: teacherError } = await admin.from("teachers").upsert({ profile_id: user.id, display_name: entry.fullName, active: true }, { onConflict: "profile_id" });
-    if (teacherError) throw teacherError;
-  }
   console.log(`Provisionado: ${entry.username}`);
 }

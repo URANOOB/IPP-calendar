@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireUser } from "@/lib/auth/user";
+import { requireDashboardRoute } from "@/lib/auth/authorization";
+import { requireRole } from "@/lib/auth/user";
 import { createClient } from "@/lib/supabase/server";
 import { bogotaInputToUtc } from "@/lib/cycles/dates";
 import { classIdSchema, classSchema, teacherIdSchema } from "@/lib/validations/classes";
@@ -26,12 +27,13 @@ function classError(error: { code?: string; message?: string } | null) {
 }
 
 async function resolveTeacherId(values: { teacherId?: string }): Promise<{ teacherId: string } | { error: string }> {
-  await requireUser();
+  await requireDashboardRoute("/dashboard/classes");
   const parsed = teacherIdSchema.safeParse(values.teacherId);
   return parsed.success ? { teacherId: parsed.data } : { error: "Selecciona un profesor válido." };
 }
 
 export async function createClass(values: unknown): Promise<ClassActionResult> {
+  await requireDashboardRoute("/dashboard/classes");
   const parsed = classSchema.safeParse(values);
   if (!parsed.success) return { success: false, error: "Revisa los datos de la clase." };
   const assigned = await resolveTeacherId(parsed.data);
@@ -53,6 +55,7 @@ export async function createClass(values: unknown): Promise<ClassActionResult> {
 }
 
 export async function updateClass(classId: string, values: unknown): Promise<ClassActionResult> {
+  await requireDashboardRoute("/dashboard/classes");
   const id = classIdSchema.safeParse(classId);
   const parsed = classSchema.safeParse(values);
   if (!id.success || !parsed.success) return { success: false, error: "Revisa los datos de la clase." };
@@ -63,7 +66,6 @@ export async function updateClass(classId: string, values: unknown): Promise<Cla
   if (!starts || !ends) return { success: false, error: "Revisa el horario de la clase." };
   const supabase = await createClient();
   const { data: existing, error: existingError } = await supabase.from("classes").select("*").eq("id", id.data).maybeSingle();
-  await requireUser();
   if (existingError || !existing) return { success: false, error: "No tienes permiso para editar esta clase." };
   if (existing.status !== "draft" && existing.status !== "published") return { success: false, error: "Esta clase ya no puede editarse." };
   const canChangeOperationalFields = true;
@@ -77,16 +79,18 @@ export async function updateClass(classId: string, values: unknown): Promise<Cla
 }
 
 export async function deleteClass(classId: string): Promise<ClassActionResult> {
+  await requireRole("admin");
   const id = classIdSchema.safeParse(classId); if (!id.success) return { success: false, error: "La clase seleccionada no es válida." };
-  await requireUser(); const supabase = await createClient(); const { error } = await supabase.rpc("delete_class", { p_class_id: id.data });
+  const supabase = await createClient(); const { error } = await supabase.rpc("delete_class", { p_class_id: id.data });
   if (error) return { success: false, error: "No fue posible eliminar la clase y sus inscripciones." };
   refreshClasses(id.data); return { success: true };
 }
 
 export async function saveClassAttendance(classId: string, entries: { registrationId: string; status: "attended" | "absent" }[]): Promise<ClassActionResult> {
+  await requireDashboardRoute("/dashboard/classes");
   const id = classIdSchema.safeParse(classId);
   if (!id.success || !Array.isArray(entries) || entries.length === 0 || entries.some((entry) => typeof entry.registrationId !== "string" || (entry.status !== "attended" && entry.status !== "absent"))) return { success: false, error: "La asistencia no pudo guardarse." };
-  await requireUser(); const supabase = await createClient();
+  const supabase = await createClient();
   const { error } = await supabase.rpc("record_class_attendance", { p_class_id: id.data, p_entries: entries.map((entry) => ({ registration_id: entry.registrationId, status: entry.status })) });
   if (error) return { success: false, error: error.message.includes("permisos") ? "No tienes permisos para registrar asistencia." : "La asistencia no pudo guardarse." };
   refreshClasses(id.data); return { success: true };

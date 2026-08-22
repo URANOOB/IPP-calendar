@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireDashboardRoute } from "@/lib/auth/authorization";
+import { requireRole } from "@/lib/auth/user";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeColombianPhone } from "@/lib/utils/phone";
 import {
@@ -118,7 +119,7 @@ export async function deactivateGuardian(guardianId: string): Promise<ContactAct
 }
 
 export async function deleteGuardian(guardianId: string): Promise<ContactActionResult> {
-  await requireDashboardRoute("/dashboard/contacts");
+  await requireRole("admin");
   const id = guardianIdSchema.safeParse(guardianId); if (!id.success) return { success: false, error: "El acudiente seleccionado no es válido." };
   const supabase = await createClient(); const { error } = await supabase.rpc("delete_guardian", { p_guardian_id: id.data });
   if (error) return { success: false, error: "No fue posible eliminar el acudiente y sus datos relacionados." };
@@ -203,7 +204,7 @@ export async function deactivateStudent(studentId: string): Promise<ContactActio
 }
 
 export async function deleteStudent(studentId: string): Promise<ContactActionResult> {
-  await requireDashboardRoute("/dashboard/contacts");
+  await requireRole("admin");
   const id = studentIdSchema.safeParse(studentId); if (!id.success) return { success: false, error: "El estudiante seleccionado no es válido." };
   const supabase = await createClient(); const { error } = await supabase.rpc("delete_student", { p_student_id: id.data });
   if (error) return { success: false, error: "No fue posible eliminar el estudiante." };

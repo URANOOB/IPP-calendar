@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { bogotaInputToUtc } from "@/lib/cycles/dates";
 import { requireDashboardRoute } from "@/lib/auth/authorization";
+import { requireRole } from "@/lib/auth/user";
 import { createClient } from "@/lib/supabase/server";
 import { cycleIdSchema, weeklyCycleSchema } from "@/lib/validations/cycles";
 
@@ -116,7 +117,7 @@ export async function setCycleActive(cycleId: string, active: boolean): Promise<
 }
 
 export async function deleteCycle(cycleId: string): Promise<CycleActionResult> {
-  await requireDashboardRoute("/dashboard/cycles"); const id = cycleIdSchema.safeParse(cycleId); if (!id.success) return { success: false, error: "El ciclo seleccionado no es válido." };
+  await requireRole("admin"); const id = cycleIdSchema.safeParse(cycleId); if (!id.success) return { success: false, error: "El ciclo seleccionado no es válido." };
   const supabase = await createClient(); const { error } = await supabase.rpc("delete_cycle", { p_cycle_id: id.data });
   if (error) return { success: false, error: "No fue posible eliminar el ciclo y sus clases." };
   refreshCycles(); revalidatePath("/dashboard/classes"); return { success: true };
