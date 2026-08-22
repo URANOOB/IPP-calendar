@@ -18,7 +18,7 @@ declare
   v_limited_student_b uuid := gen_random_uuid();
   v_hash text := encode(extensions.digest('public-booking-test', 'sha256'), 'hex');
 begin
-  update public.weekly_cycles set status = 'draft' where status = 'open';
+  update public.weekly_cycles set status = 'closed' where status = 'open';
   insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
   values (v_profile, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'booking-' || v_profile || '@example.test', '', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now());
   insert into public.profiles (id, role, full_name) values (v_profile, 'teacher', 'Profesor de prueba');
@@ -29,13 +29,15 @@ begin
   values (v_class, v_cycle, v_teacher, 'Clase con dos cupos', now() + interval '1 hour', now() + interval '2 hours', 2, 'published');
   insert into public.classes (id, cycle_id, teacher_id, title, starts_at, ends_at, capacity, status)
   values (v_one_seat_class, v_cycle, v_teacher, 'Clase con un cupo', now() + interval '3 hours', now() + interval '4 hours', 1, 'published');
-  insert into public.guardians (id, full_name, phone, access_token_hash) values
-    (v_guardian, 'Acudiente de prueba', '+573109999991', v_hash),
-    (v_other_guardian, 'Otra familia', '+573109999992', encode(extensions.digest('other-test', 'sha256'), 'hex')),
-    (v_limited_guardian, 'Familia cupo limitado', '+573109999993', encode(extensions.digest('limited-test', 'sha256'), 'hex'));
+  insert into public.guardians (id, full_name, phone) values
+    (v_guardian, 'Acudiente de prueba', '+573109999991'),
+    (v_other_guardian, 'Otra familia', '+573109999992'),
+    (v_limited_guardian, 'Familia cupo limitado', '+573109999993');
   insert into public.students (id, guardian_id, full_name) values
     (v_student_a, v_guardian, 'Niño A'), (v_student_b, v_guardian, 'Niño B'), (v_other_student, v_other_guardian, 'Niño ajeno'),
     (v_limited_student_a, v_limited_guardian, 'Niño cupo A'), (v_limited_student_b, v_limited_guardian, 'Niño cupo B');
+  insert into public.guardian_cycle_invitations (guardian_id, cycle_id, token_hash) values
+    (v_guardian, v_cycle, v_hash), (v_other_guardian, v_cycle, encode(extensions.digest('other-test', 'sha256'), 'hex')), (v_limited_guardian, v_cycle, encode(extensions.digest('limited-test', 'sha256'), 'hex'));
 
   perform public.book_guardian_classes(v_hash, jsonb_build_array(jsonb_build_object('student_id', v_student_a, 'class_id', v_class), jsonb_build_object('student_id', v_student_b, 'class_id', v_class)));
   if (select count(*) from public.registrations where class_id = v_class) <> 2 then raise exception 'Expected two registrations'; end if;

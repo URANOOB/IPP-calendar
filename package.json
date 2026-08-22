@@ -11,7 +11,8 @@
     "db:start": "supabase start",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
-    "db:types": "supabase gen types typescript --local > src/types/database.generated.ts"
+    "db:types": "supabase gen types typescript --local > src/types/database.generated.ts",
+    "seed:demo-users": "node --env-file=.env --env-file=.env.local scripts/seed-demo-users.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

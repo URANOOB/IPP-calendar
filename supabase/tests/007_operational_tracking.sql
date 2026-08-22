@@ -5,7 +5,7 @@ declare
   v_admin uuid := gen_random_uuid(); v_teacher_profile uuid := gen_random_uuid(); v_teacher uuid := gen_random_uuid();
   v_cycle uuid := gen_random_uuid(); v_class uuid := gen_random_uuid(); v_guardian uuid := gen_random_uuid(); v_student uuid := gen_random_uuid(); v_registration uuid := gen_random_uuid();
 begin
-  update public.weekly_cycles set status = 'draft' where status = 'open';
+  update public.weekly_cycles set status = 'closed' where status = 'open';
   insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) values
     (v_admin, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'tracking-admin-' || v_admin || '@example.test', '', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now()),
     (v_teacher_profile, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'tracking-teacher-' || v_teacher_profile || '@example.test', '', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now());

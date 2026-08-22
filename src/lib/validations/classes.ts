@@ -13,8 +13,8 @@ export const classSchema = z.object({
   cycleId: z.string().uuid("Selecciona un ciclo válido."),
   startsAt: localDateSchema,
   endsAt: localDateSchema,
-  capacity: z.number().int().min(1, "El cupo debe ser al menos 1.").max(100, "El cupo máximo es 100."),
-  meetingUrl: z.union([z.literal(""), z.url("Ingresa un enlace HTTPS válido.").refine((url) => url.startsWith("https://"), "El enlace debe usar HTTPS.")]),
+  capacity: z.number().int().min(1, "El cupo debe ser al menos 1.").max(4, "El cupo máximo es 4."),
+  meetingUrl: z.url("Ingresa un enlace HTTPS válido.").refine((url) => url.startsWith("https://"), "El enlace debe usar HTTPS."),
   teacherId: z.string().uuid().optional(),
 }).superRefine((value, context) => {
   const starts = bogotaInputToUtc(value.startsAt);

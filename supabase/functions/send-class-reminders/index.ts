@@ -12,6 +12,7 @@ type Reminder = {
   teacher_name: string;
   student_count: number;
   guardian_count: number;
+  lead_minutes: number;
 };
 
 const BOGOTA_TIME_ZONE = "America/Bogota";
@@ -20,17 +21,25 @@ const formatDate = (value: string) => new Intl.DateTimeFormat("es-CO", { timeZon
 const formatTime = (value: string) => new Intl.DateTimeFormat("es-CO", { timeZone: BOGOTA_TIME_ZONE, hour: "numeric", minute: "2-digit" }).format(new Date(value));
 
 function appUrl() { return (Deno.env.get("APP_URL") ?? "").replace(/\/$/, ""); }
+function leadTimeText(leadMinutes: number) {
+  if (leadMinutes === 1440) return "mañana";
+  if (leadMinutes % 60 === 0) {
+    const hours = leadMinutes / 60;
+    return `en ${hours} ${hours === 1 ? "hora" : "horas"}`;
+  }
+  return `en ${leadMinutes} minutos`;
+}
+
 function subjectFor(reminder: Reminder) {
-  if (reminder.reminder_type === "teacher_24h") return "Tu clase de IPP es mañana";
-  if (reminder.reminder_type === "teacher_3h") return "Tu clase de IPP comienza en aproximadamente 3 horas";
-  if (reminder.reminder_type === "manager_24h") return "Seguimiento requerido — clase mañana";
-  return "Seguimiento requerido — clase en aproximadamente 3 horas";
+  const timing = leadTimeText(reminder.lead_minutes);
+  if (reminder.reminder_type.startsWith("teacher_")) return `Tu clase de IPP comienza ${timing}`;
+  return `Seguimiento requerido — clase ${timing}`;
 }
 
 function emailFor(reminder: Reminder) {
   const manager = reminder.reminder_type.startsWith("manager_");
   const detailUrl = manager ? `${appUrl()}/dashboard/tracking` : `${appUrl()}/dashboard/classes/${reminder.class_id}`;
-  const timing = reminder.reminder_type.endsWith("24h") ? "mañana" : "en aproximadamente 3 horas";
+  const timing = leadTimeText(reminder.lead_minutes);
   const heading = manager ? "Recordatorio de seguimiento" : "Recordatorio de clase";
   const body = manager
     ? `La clase de ${emailEscape(reminder.teacher_name)} comienza ${timing}. Realiza el contacto correspondiente por WhatsApp.`
@@ -51,7 +60,7 @@ Deno.serve(async (request) => {
   if (request.method !== "POST" || request.headers.get("x-reminder-cron-secret") !== Deno.env.get("REMINDER_CRON_SECRET")) {
     return new Response("Unauthorized", { status: 401 });
   }
-  const url = Deno.env.get("SUPABASE_URL"); const key = serviceKey(); const resendKey = Deno.env.get("RESEND_API_KEY"); const from = Deno.env.get("RESEND_FROM_EMAIL");
+  const url = Deno.env.get("SUPABASE_URL"); const key = serviceKey(); const resendKey = Deno.env.get("RESEND_API_KEY"); const from = Deno.env.get("RESEND_FROM_EMAIL"); const replyTo = Deno.env.get("RESEND_REPLY_TO_EMAIL");
   if (!url || !key || !resendKey || !from) return Response.json({ error: "Reminder service is not configured." }, { status: 503 });
   const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: reminders, error } = await supabase.rpc("claim_due_class_reminders");
@@ -61,7 +70,7 @@ Deno.serve(async (request) => {
   for (const reminder of (reminders ?? []) as Reminder[]) {
     const email = emailFor(reminder);
     try {
-      const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json", "Idempotency-Key": `ipp-class-reminder/${reminder.reminder_id}` }, body: JSON.stringify({ from, to: [reminder.recipient_email], subject: email.subject, html: email.html }) });
+      const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json", "Idempotency-Key": `ipp-class-reminder/${reminder.reminder_id}` }, body: JSON.stringify({ from, to: [reminder.recipient_email], subject: email.subject, html: email.html, ...(replyTo ? { reply_to: replyTo } : {}) }) });
       const payload = await response.json() as { id?: string; message?: string };
       if (!response.ok || !payload.id) throw new Error(payload.message ?? `Resend returned ${response.status}.`);
       const { error: completeError } = await supabase.rpc("complete_class_reminder", { reminder_id: reminder.reminder_id, resend_email_id: payload.id });

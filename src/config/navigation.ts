@@ -11,15 +11,13 @@ export interface NavigationItem {
 }
 
 export const dashboardNavigation: NavigationItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["admin", "teacher", "contact_manager"] },
-  { label: "Contactos", href: "/dashboard/contacts", icon: Users, roles: ["admin", "contact_manager"] },
-  { label: "Estudiantes", href: "/dashboard/students", icon: GraduationCap, roles: ["admin", "contact_manager"] },
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["admin"] },
+  { label: "Contactos", href: "/dashboard/contacts", icon: Users, roles: ["admin"] },
+  { label: "Estudiantes", href: "/dashboard/students", icon: GraduationCap, roles: ["admin"] },
   { label: "Profesores", href: "/dashboard/teachers", icon: UserRoundCog, roles: ["admin"] },
-  { label: "Clases", href: "/dashboard/classes", icon: BookOpenCheck, roles: ["admin", "contact_manager"] },
-  { label: "Mis clases", href: "/dashboard/my-classes", icon: BookOpenCheck, roles: ["teacher"] },
+  { label: "Clases", href: "/dashboard/classes", icon: BookOpenCheck, roles: ["admin"] },
   { label: "Ciclos", href: "/dashboard/cycles", icon: CalendarDays, roles: ["admin"] },
-  { label: "Seguimiento", href: "/dashboard/tracking", icon: Waypoints, roles: ["admin", "contact_manager"] },
-  { label: "Configuración", href: "/dashboard/settings", icon: UserRoundCog, roles: ["admin"] },
+  { label: "Seguimiento", href: "/dashboard/tracking", icon: Waypoints, roles: ["admin"] },
 ];
 
 export function navigationForRole(role: UserRole) {

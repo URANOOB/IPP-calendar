@@ -1,7 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
-
 import { hashPrivateAccessToken } from "@/lib/utils/private-token";
 import { privateTokenSchema } from "@/lib/validations/guardians";
 import { publicClassSelectionsSchema } from "@/lib/validations/public-registration";
@@ -23,7 +21,6 @@ export async function confirmPublicClassSelections(token: string, selections: un
   const supabase = await createClient();
   const { error } = await supabase.rpc("book_guardian_classes", { token_hash: hashPrivateAccessToken(parsedToken.data), selections: parsedSelections.data.map((selection) => ({ student_id: selection.studentId, class_id: selection.classId })) });
   if (error) return { success: false, error: friendlyBookingError(error.message) };
-  revalidatePath(`/clases/t/${parsedToken.data}`);
   return { success: true };
 }
 

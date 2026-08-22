@@ -20,9 +20,9 @@ export async function getCycleOverview(): Promise<CycleOverview> {
 
   const now = new Date();
   return {
-    currentOpenCycle: data.find((cycle) => cycle.status === "open") ?? null,
+    currentOpenCycle: data.find((cycle) => cycle.status === "open" && new Date(cycle.starts_at) <= now && now <= new Date(cycle.ends_at)) ?? null,
     upcomingCycle: data.find((cycle) => new Date(cycle.starts_at) > now && cycle.status !== "archived") ?? null,
-    lastClosedCycle: [...data].reverse().find((cycle) => (cycle.status === "closed" || cycle.status === "archived") && new Date(cycle.ends_at) <= now) ?? null,
+    lastClosedCycle: [...data].reverse().find((cycle) => new Date(cycle.ends_at) <= now && cycle.status !== "draft") ?? null,
   };
 }
 

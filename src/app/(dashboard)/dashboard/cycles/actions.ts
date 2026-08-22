@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 
-import { CYCLE_TRANSITIONS, type WeeklyCycleStatus } from "@/lib/cycles/constants";
 import { bogotaInputToUtc } from "@/lib/cycles/dates";
 import { requireDashboardRoute } from "@/lib/auth/authorization";
 import { createClient } from "@/lib/supabase/server";
@@ -13,14 +12,18 @@ export type CycleActionResult = { success: true; cycleId?: string } | { success:
 function refreshCycles(cycleId?: string) {
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/cycles");
-  revalidatePath("/dashboard/ciclos");
   if (cycleId) revalidatePath(`/dashboard/cycles/${cycleId}`);
 }
 
-function cycleDatabaseError(error: { code?: string } | null): string | null {
+function cycleDatabaseError(error: { code?: string; constraint?: string; message?: string } | null): string | null {
+  if (error?.code === "23P01" && error.constraint === "weekly_cycles_no_registration_window_overlap") {
+    return "La ventana de inscripción se superpone con otro ciclo activo.";
+  }
   if (error?.code === "23P01") return "Las fechas de este ciclo se superponen con otra semana.";
-  if (error?.code === "23505") return "Ya existe un ciclo abierto.";
   if (error?.code === "23514") return "Las fechas del ciclo no cumplen las reglas requeridas.";
+  if (error?.message?.includes("A cycle cannot exclude existing classes")) {
+    return "No puedes dejar clases existentes fuera del rango del ciclo.";
+  }
   return null;
 }
 
@@ -44,7 +47,8 @@ export async function createCycle(values: unknown): Promise<CycleActionResult> {
       ends_at: ends.toISOString(),
       registration_opens_at: opens.toISOString(),
       registration_closes_at: closes.toISOString(),
-      status: "draft",
+      status: "open",
+      opened_at: new Date().toISOString(),
     })
     .select("id")
     .single();
@@ -81,68 +85,39 @@ export async function updateDraftCycle(cycleId: string, values: unknown): Promis
       registration_closes_at: closes.toISOString(),
     })
     .eq("id", id.data)
-    .eq("status", "draft")
+    .in("status", ["open", "closed"])
     .select("id")
     .maybeSingle();
   const message = cycleDatabaseError(error);
   if (message) return { success: false, error: message };
-  if (error || !data) return { success: false, error: "Solo los ciclos en borrador pueden editarse." };
+  if (error || !data) return { success: false, error: "No fue posible actualizar el ciclo." };
   refreshCycles(id.data);
   return { success: true };
 }
 
-export async function openCycle(cycleId: string): Promise<CycleActionResult> {
+export async function setCycleActive(cycleId: string, active: boolean): Promise<CycleActionResult> {
   await requireDashboardRoute("/dashboard/cycles");
   const id = cycleIdSchema.safeParse(cycleId);
   if (!id.success) return { success: false, error: "El ciclo seleccionado no es válido." };
 
   const supabase = await createClient();
-  const { data: cycle, error: cycleError } = await supabase.from("weekly_cycles").select("*").eq("id", id.data).maybeSingle();
-  if (cycleError || !cycle || cycle.status !== "draft") return { success: false, error: "Solo un ciclo en borrador puede abrirse." };
-  if (new Date(cycle.registration_closes_at) < new Date()) return { success: false, error: "No puedes abrir un ciclo con inscripciones ya vencidas." };
-
   const { data, error } = await supabase
     .from("weekly_cycles")
-    .update({ status: "open", opened_at: new Date().toISOString() })
+    .update(active ? { status: "open", opened_at: new Date().toISOString(), closed_at: null } : { status: "closed", closed_at: new Date().toISOString() })
     .eq("id", id.data)
-    .eq("status", "draft")
+    .in("status", ["open", "closed"])
     .select("id")
     .maybeSingle();
   const message = cycleDatabaseError(error);
   if (message) return { success: false, error: message };
-  if (error || !data) return { success: false, error: "No fue posible abrir el ciclo." };
+  if (error || !data) return { success: false, error: "No fue posible actualizar el estado del ciclo." };
   refreshCycles(id.data);
   return { success: true };
 }
 
-export async function closeCycle(cycleId: string): Promise<CycleActionResult> {
-  return transitionCycle(cycleId, "closed");
-}
-
-export async function archiveCycle(cycleId: string): Promise<CycleActionResult> {
-  await requireDashboardRoute("/dashboard/cycles");
-  const id = cycleIdSchema.safeParse(cycleId);
-  if (!id.success) return { success: false, error: "El ciclo seleccionado no es válido." };
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("weekly_cycles").update({ status: "archived" }).eq("id", id.data).in("status", ["draft", "closed"]).select("id").maybeSingle();
-  if (error || !data) return { success: false, error: "Solo los ciclos en borrador o cerrados pueden archivarse." };
-  refreshCycles(id.data);
-  return { success: true };
-}
-
-async function transitionCycle(cycleId: string, target: WeeklyCycleStatus): Promise<CycleActionResult> {
-  await requireDashboardRoute("/dashboard/cycles");
-  const id = cycleIdSchema.safeParse(cycleId);
-  if (!id.success || !CYCLE_TRANSITIONS.open.includes(target)) return { success: false, error: "La transición solicitada no es válida." };
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("weekly_cycles")
-    .update({ status: target, closed_at: new Date().toISOString() })
-    .eq("id", id.data)
-    .eq("status", "open")
-    .select("id")
-    .maybeSingle();
-  if (error || !data) return { success: false, error: "Solo un ciclo abierto puede cerrarse." };
-  refreshCycles(id.data);
-  return { success: true };
+export async function deleteCycle(cycleId: string): Promise<CycleActionResult> {
+  await requireDashboardRoute("/dashboard/cycles"); const id = cycleIdSchema.safeParse(cycleId); if (!id.success) return { success: false, error: "El ciclo seleccionado no es válido." };
+  const supabase = await createClient(); const { error } = await supabase.rpc("delete_cycle", { p_cycle_id: id.data });
+  if (error) return { success: false, error: "No fue posible eliminar el ciclo y sus clases." };
+  refreshCycles(); revalidatePath("/dashboard/classes"); return { success: true };
 }

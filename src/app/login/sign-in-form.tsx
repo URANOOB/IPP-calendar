@@ -30,16 +30,16 @@ export function SignInForm() {
   return (
     <form className="mt-8 space-y-5" noValidate onSubmit={handleSubmit(onSubmit)}>
       <div className="space-y-2">
-        <label className="text-sm font-medium" htmlFor="email">Correo electrónico</label>
+        <label className="text-sm font-medium" htmlFor="username">Usuario</label>
         <input
-          autoComplete="email"
+          autoComplete="username"
           className="h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
           disabled={isPending}
-          id="email"
-          type="email"
-          {...register("email")}
+          id="username"
+          type="text"
+          {...register("username")}
         />
-        {errors.email ? <p className="text-sm text-destructive" role="alert">{errors.email.message}</p> : null}
+        {errors.username ? <p className="text-sm text-destructive" role="alert">{errors.username.message}</p> : null}
       </div>
       <div className="space-y-2">
         <label className="text-sm font-medium" htmlFor="password">Contraseña</label>

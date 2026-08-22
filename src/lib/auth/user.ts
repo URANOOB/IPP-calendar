@@ -100,22 +100,3 @@ export async function requireAnyRole(roles: readonly UserRole[]): Promise<Intern
 export async function requireRole(role: UserRole): Promise<InternalUser> {
   return requireAnyRole([role]);
 }
-
-/** Prepared for future "my classes" queries without exposing teacher records to the client. */
-export async function getCurrentTeacher() {
-  const user = await requireRole("teacher");
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("teachers")
-    .select("id, profile_id, display_name, active")
-    .eq("profile_id", user.id)
-    .eq("active", true)
-    .maybeSingle();
-
-  if (error) {
-    console.error("No fue posible consultar el registro de profesor.", error);
-    return null;
-  }
-
-  return data;
-}

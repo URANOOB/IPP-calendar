@@ -6,11 +6,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
+import { CalendarPlus, Eye, Pencil, Plus, Trash2 } from "lucide-react";
 
-import { archiveCycle, closeCycle, createCycle, openCycle } from "@/app/(dashboard)/dashboard/cycles/actions";
+import { createCycle, deleteCycle, setCycleActive } from "@/app/(dashboard)/dashboard/cycles/actions";
 import { Button } from "@/components/ui/button";
-import { WEEKLY_CYCLE_STATUS_LABELS, type WeeklyCycleStatus } from "@/lib/cycles/constants";
-import { formatBogotaDate, formatBogotaDateTime, getCycleEffectiveStatus, nextWeekCycleDates } from "@/lib/cycles/dates";
+import { type WeeklyCycleStatus } from "@/lib/cycles/constants";
+import { formatBogotaDate, formatBogotaDateTime, nextWeekCycleDates } from "@/lib/cycles/dates";
 import { weeklyCycleSchema, type WeeklyCycleValues } from "@/lib/validations/cycles";
 
 export interface CycleListItem {
@@ -26,7 +27,7 @@ export interface CycleListItem {
 export function CyclesManager({ cycles }: Readonly<{ cycles: CycleListItem[] }>) {
   const router = useRouter();
   const [showCreate, setShowCreate] = useState(false);
-  const [filter, setFilter] = useState<"all" | WeeklyCycleStatus>("all");
+  const [filter, setFilter] = useState<"all" | "open" | "closed">("all");
   const [error, setError] = useState<string>();
   const [pendingId, setPendingId] = useState<string>();
   const [isPending, startTransition] = useTransition();
@@ -48,21 +49,28 @@ export function CyclesManager({ cycles }: Readonly<{ cycles: CycleListItem[] }>)
       }
       form.reset();
       setShowCreate(false);
-      if (result.cycleId) router.push(`/dashboard/cycles/${result.cycleId}`);
+      router.push("/dashboard/cycles");
     });
   }
 
-  function onAction(cycle: CycleListItem, action: "open" | "close" | "archive") {
-    const messages = {
-      open: `¿Abrir inscripciones para ${cycle.name}?`,
-      close: `¿Cerrar inscripciones para ${cycle.name}?`,
-      archive: `¿Archivar ${cycle.name}? El historial se conservará.`,
-    };
-    if (!window.confirm(messages[action])) return;
+  function onDelete(cycle: CycleListItem) {
+    if (!window.confirm(`¿Eliminar permanentemente ${cycle.name}, sus clases, inscripciones e invitaciones? Esta acción no se puede deshacer.`)) return;
     setError(undefined);
     setPendingId(cycle.id);
     startTransition(async () => {
-      const result = action === "open" ? await openCycle(cycle.id) : action === "close" ? await closeCycle(cycle.id) : await archiveCycle(cycle.id);
+      const result = await deleteCycle(cycle.id);
+      setPendingId(undefined);
+      handleResult(result);
+    });
+  }
+
+  function toggleActive(cycle: CycleListItem) {
+    const active = cycle.status !== "open";
+    if (!window.confirm(`${active ? "¿Activar" : "¿Desactivar"} ${cycle.name}?${active ? " Podrás asociarle clases." : " No podrás asociarle nuevas clases."}`)) return;
+    setError(undefined);
+    setPendingId(cycle.id);
+    startTransition(async () => {
+      const result = await setCycleActive(cycle.id, active);
       setPendingId(undefined);
       handleResult(result);
     });
@@ -90,15 +98,36 @@ export function CyclesManager({ cycles }: Readonly<{ cycles: CycleListItem[] }>)
     { accessorKey: "endsAt", header: "Fin", cell: ({ row }) => formatBogotaDate(row.original.endsAt) },
     { accessorKey: "registrationOpensAt", header: "Apertura", cell: ({ row }) => formatBogotaDateTime(row.original.registrationOpensAt) },
     { accessorKey: "registrationClosesAt", header: "Cierre", cell: ({ row }) => formatBogotaDateTime(row.original.registrationClosesAt) },
-    { id: "status", header: "Estado", cell: ({ row }) => <span>{WEEKLY_CYCLE_STATUS_LABELS[row.original.status]} · {getCycleEffectiveStatus({ status: row.original.status, starts_at: row.original.startsAt, ends_at: row.original.endsAt, registration_opens_at: row.original.registrationOpensAt, registration_closes_at: row.original.registrationClosesAt })}</span> },
+    {
+      id: "status",
+      header: "Estado",
+      cell: ({ row }) => {
+        const active = row.original.status === "open";
+        const pending = isPending && pendingId === row.original.id;
+        return <div className="flex items-center gap-2.5">
+          <button
+            aria-checked={active}
+            aria-label={`${active ? "Desactivar" : "Activar"} ${row.original.name}`}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${active ? "bg-emerald-500" : "bg-slate-300"}`}
+            disabled={pending}
+            onClick={() => toggleActive(row.original)}
+            role="switch"
+            title={active ? "Desactivar ciclo" : "Activar ciclo"}
+            type="button"
+          >
+            <span className={`size-5 rounded-full bg-white shadow-sm transition-transform ${active ? "translate-x-5" : "translate-x-0.5"}`} />
+          </button>
+          <span className={`text-xs font-semibold ${active ? "text-emerald-700" : "text-muted-foreground"}`}>{active ? "Activo" : "Inactivo"}</span>
+        </div>;
+      },
+    },
     {
       id: "actions",
       header: "Acciones",
-      cell: ({ row }) => <div className="flex flex-wrap gap-2">
-        <Button asChild variant="outline"><Link href={`/dashboard/cycles/${row.original.id}`}>{row.original.status === "draft" ? "Editar" : "Ver"}</Link></Button>
-        {row.original.status === "draft" ? <Button disabled={isPending && pendingId === row.original.id} onClick={() => onAction(row.original, "open")} type="button">Abrir</Button> : null}
-        {row.original.status === "open" ? <Button disabled={isPending && pendingId === row.original.id} onClick={() => onAction(row.original, "close")} type="button" variant="outline">Cerrar</Button> : null}
-        {(row.original.status === "draft" || row.original.status === "closed") ? <Button disabled={isPending && pendingId === row.original.id} onClick={() => onAction(row.original, "archive")} type="button" variant="outline">Archivar</Button> : null}
+      cell: ({ row }) => <div className="flex items-center gap-1.5">
+        <Button asChild aria-label={`Ver ${row.original.name}`} size="icon" title="Ver ciclo" variant="outline"><Link href={`/dashboard/cycles/${row.original.id}`}><Eye aria-hidden="true" /></Link></Button>
+        <Button asChild aria-label={`Editar ${row.original.name}`} size="icon" title="Editar ciclo" variant="outline"><Link href={`/dashboard/cycles/${row.original.id}/edit`}><Pencil aria-hidden="true" /></Link></Button>
+        <Button aria-label={`Eliminar ${row.original.name}`} className="border border-transparent bg-transparent text-rose-500 hover:border-rose-100 hover:bg-rose-50 hover:text-rose-600" disabled={isPending && pendingId === row.original.id} onClick={() => onDelete(row.original)} size="icon" title="Eliminar ciclo" type="button" variant="destructive"><Trash2 aria-hidden="true" /></Button>
       </div>,
     },
   ];
@@ -108,8 +137,8 @@ export function CyclesManager({ cycles }: Readonly<{ cycles: CycleListItem[] }>)
 
   return <div className="space-y-5">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex gap-3"><label className="sr-only" htmlFor="cycle-filter">Filtrar ciclos</label><select className="h-10 rounded-lg border bg-card px-3 text-sm" id="cycle-filter" onChange={(event) => setFilter(event.target.value as typeof filter)} value={filter}><option value="all">Todos los estados</option>{Object.entries(WEEKLY_CYCLE_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><Button onClick={prefillNextWeek} type="button" variant="outline">Crear próxima semana</Button></div>
-      <Button onClick={() => setShowCreate((visible) => !visible)} type="button">{showCreate ? "Cancelar" : "Crear ciclo"}</Button>
+      <div className="flex gap-3"><label className="sr-only" htmlFor="cycle-filter">Filtrar ciclos</label><select className="h-10 rounded-lg border bg-card px-3 text-sm" id="cycle-filter" onChange={(event) => setFilter(event.target.value as typeof filter)} value={filter}><option value="all">Todos los estados</option><option value="open">Activos</option><option value="closed">Inactivos</option></select><Button onClick={prefillNextWeek} type="button" variant="outline"><CalendarPlus aria-hidden="true" />Crear próxima semana</Button></div>
+      <Button onClick={() => setShowCreate((visible) => !visible)} type="button">{showCreate ? "Cancelar" : <><Plus aria-hidden="true" />Crear ciclo</>}</Button>
     </div>
     {showCreate ? <form className="grid gap-4 rounded-xl border bg-card p-5 sm:grid-cols-2" noValidate onSubmit={form.handleSubmit(onCreate)}>
       <div className="space-y-2 sm:col-span-2"><label className="text-sm font-medium" htmlFor="cycle-name">Nombre</label><input className="h-10 w-full rounded-lg border bg-background px-3 text-sm" id="cycle-name" placeholder="Semana 35 · 24–30 agosto" {...form.register("name")} />{form.formState.errors.name ? <p className="text-sm text-destructive" role="alert">{form.formState.errors.name.message}</p> : null}</div>
@@ -117,7 +146,7 @@ export function CyclesManager({ cycles }: Readonly<{ cycles: CycleListItem[] }>)
       <DateField form={form} id="cycle-end" label="Fin del ciclo" name="endsAt" />
       <DateField form={form} id="cycle-registration-open" label="Apertura de inscripción" name="registrationOpensAt" />
       <DateField form={form} id="cycle-registration-close" label="Cierre de inscripción" name="registrationClosesAt" />
-      <div className="sm:col-span-2"><Button disabled={isPending} type="submit">{isPending ? "Guardando…" : "Guardar borrador"}</Button></div>
+      <div className="sm:col-span-2"><Button disabled={isPending} type="submit">{isPending ? "Guardando…" : "Guardar ciclo activo"}</Button></div>
     </form> : null}
     {error ? <p className="rounded-lg border border-destructive/30 bg-card p-3 text-sm text-destructive" role="alert">{error}</p> : null}
     <div className="overflow-x-auto rounded-xl border bg-card"><table className="w-full min-w-[980px] text-left text-sm"><thead className="border-b bg-muted/40 text-muted-foreground"><tr>{table.getFlatHeaders().map((header) => <th className="px-4 py-3 font-medium" key={header.id}>{header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr></thead><tbody>{table.getRowModel().rows.map((row) => <tr className="border-b last:border-0" key={row.id}>{row.getVisibleCells().map((cell) => <td className="px-4 py-3 align-top" key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}</tbody></table>{visibleCycles.length === 0 ? <p className="px-5 py-10 text-center text-sm text-muted-foreground">No hay ciclos para este estado.</p> : null}</div>

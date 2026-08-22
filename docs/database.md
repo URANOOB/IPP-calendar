@@ -7,8 +7,9 @@ La migración inicial está en `supabase/migrations/20260820000100_initial_ipp_s
 - `registrations` conserva `cycle_id` porque la regla principal es `UNIQUE(student_id, cycle_id)`. Una clave foránea compuesta a `classes(id, cycle_id)` impide que el ciclo guardado no sea el ciclo real de la clase.
 - `guardian_id` no se duplica en `registrations`: se obtiene de `students.guardian_id`. Así no puede desincronizarse y se mantiene una sola fuente de verdad.
 - El teléfono de `guardians` debe estar normalizado a E.164 y es único. Los UUID siguen siendo las claves internas.
-- El trigger de `students` bloquea la fila de su acudiente antes de contar, por lo que el límite de cuatro estudiantes se conserva incluso con inserciones concurrentes.
+- El trigger de `students` bloquea la fila de su acudiente antes de contar, por lo que el límite de diez estudiantes activos se conserva incluso con inserciones concurrentes. Los inactivos permanecen como histórico.
 - `contact_tracking` conserva un registro operativo por acudiente (`UNIQUE(guardian_id)`). Un historial de eventos separado podrá añadirse cuando el flujo de seguimiento lo requiera.
+- `teachers.notification_email` permite separar el correo operativo de recordatorios del correo de acceso de Auth; si queda vacío, los recordatorios usan el correo de Auth como respaldo. `teachers.avatar_path` apunta a la foto almacenada en el bucket público de perfiles de profesores.
 
 ## Seguridad
 
@@ -34,7 +35,7 @@ La aplicación considera `profiles` como fuente de verdad. Una cuenta de Auth si
 
 ## Enlaces privados de acudientes
 
-Cada enlace se crea con 32 bytes criptográficamente aleatorios y se guarda solo como hash SHA-256 en `guardians.access_token_hash`. El token en texto plano se entrega una sola vez a quien lo genera; no puede recuperarse después. Para volver a compartirlo se debe regenerar, invalidando inmediatamente el enlace anterior.
+Cada invitación se crea con 32 bytes criptográficamente aleatorios y se guarda solo como hash SHA-256 en `guardian_cycle_invitations`. El token en texto plano se entrega una sola vez a quien lo genera; no puede recuperarse después. Varias invitaciones del mismo acudiente y ciclo pueden mantenerse válidas simultáneamente.
 
 La ruta pública resuelve el hash únicamente en servidor mediante una función SQL `security definer` que devuelve exclusivamente el nombre del acudiente y los nombres de sus estudiantes activos. No existe una policy pública de lectura sobre `guardians` ni `students`.
 

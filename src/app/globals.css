@@ -4,21 +4,21 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #f8fafc;
-  --foreground: #172033;
+  --background: #f4f8fb;
+  --foreground: #243252;
   --card: #ffffff;
-  --card-foreground: #172033;
-  --primary: #1d4ed8;
+  --card-foreground: #243252;
+  --primary: #5368ee;
   --primary-foreground: #ffffff;
-  --secondary: #eaf2ff;
-  --secondary-foreground: #1e3a8a;
-  --muted: #eff3f8;
-  --muted-foreground: #64748b;
-  --accent: #fef3c7;
-  --accent-foreground: #78350f;
-  --border: #dbe4ee;
-  --ring: #2563eb;
-  --radius: 0.75rem;
+  --secondary: #e8efff;
+  --secondary-foreground: #4358d9;
+  --muted: #edf3f7;
+  --muted-foreground: #70809b;
+  --accent: #dffaff;
+  --accent-foreground: #27617b;
+  --border: #e3eaf1;
+  --ring: #5b6df0;
+  --radius: 1rem;
 }
 
 @theme inline {
@@ -51,12 +51,55 @@ html {
 
 body {
   min-height: 100vh;
-  background: var(--background);
+  background:
+    radial-gradient(circle at 6% 6%, #f6e665 0, #f6e665 10rem, transparent 28rem),
+    linear-gradient(135deg, #f5f8fc 0%, #eef7fb 100%);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Aptos", "Segoe UI", Arial, Helvetica, sans-serif;
 }
 
 :focus-visible {
   outline: 3px solid var(--ring);
   outline-offset: 3px;
+}
+
+.dashboard-topbar {
+  background-color: rgb(255 255 255 / 0.94);
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.9), rgb(255 255 255 / 0.9)),
+    url("/images/journey-pattern.png");
+  background-position: center, left center;
+  background-repeat: no-repeat, repeat;
+  background-size: 100% 100%, 22rem auto;
+}
+
+.sidebar-dolphin {
+  position: absolute;
+  top: 0.8rem;
+  left: 0.5rem;
+  width: 9rem;
+  opacity: 0.82;
+  height: auto;
+  image-rendering: pixelated;
+  animation: sidebar-dolphin-swim 9s linear infinite;
+}
+
+@keyframes sidebar-dolphin-swim {
+  0% { left: -9rem; opacity: 0; }
+  6% { left: 0.5rem; opacity: 0.82; }
+  94% { left: calc(100% - 9.5rem); opacity: 0.82; }
+  100% { left: calc(100% + 0.5rem); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-dolphin { animation: none; left: calc(50% - 4.5rem); }
+}
+
+/* Unifica superficies, tablas y formularios con el lenguaje suave del dashboard. */
+input, select, textarea {
+  box-shadow: inset 0 1px 2px rgb(70 104 149 / 0.03);
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: color-mix(in srgb, var(--primary) 55%, white);
 }

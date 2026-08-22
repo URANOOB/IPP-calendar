@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 import { ContactsManager, type ContactListItem } from "@/components/contacts/contacts-manager";
 import { PageHeader } from "@/components/shared/page-header";
 import { requireDashboardRoute } from "@/lib/auth/authorization";
@@ -5,28 +7,48 @@ import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Contactos" };
 
-export default async function ContactsPage() {
-  await requireDashboardRoute("/dashboard/contacts");
-  const supabase = await createClient();
-  const [{ data: guardians, error: guardiansError }, { data: students, error: studentsError }] = await Promise.all([
-    supabase.from("guardians").select("id, full_name, phone, active, access_token_hash").order("full_name"),
-    supabase.from("students").select("guardian_id"),
-  ]);
+const PAGE_SIZE = 25;
 
-  if (guardiansError || studentsError) {
+type ContactsPageProps = Readonly<{
+  searchParams: Promise<{ page?: string; search?: string; status?: string }>;
+}>;
+
+export default async function ContactsPage({ searchParams }: ContactsPageProps) {
+  await requireDashboardRoute("/dashboard/contacts");
+  const params = await searchParams;
+  const requestedPage = Number.parseInt(params.page ?? "1", 10);
+  const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const search = (params.search ?? "").trim().slice(0, 80);
+  const status = params.status === "active" || params.status === "inactive" ? params.status : "all";
+  const active = status === "active" ? true : status === "inactive" ? false : null;
+  const supabase = await createClient();
+  const { data: rows, error } = await supabase.rpc("list_contact_guardians", {
+    p_search: search || null,
+    p_active: active,
+    p_limit: PAGE_SIZE,
+    p_offset: (page - 1) * PAGE_SIZE,
+  });
+
+  if (error) {
     return <p className="rounded-xl border bg-card p-6 text-sm text-destructive">No fue posible cargar los acudientes. Actualiza la página para intentarlo de nuevo.</p>;
   }
 
-  const studentCounts = new Map<string, number>();
-  students.forEach((student) => studentCounts.set(student.guardian_id, (studentCounts.get(student.guardian_id) ?? 0) + 1));
-  const contacts: ContactListItem[] = guardians.map((guardian) => ({
-    id: guardian.id,
-    fullName: guardian.full_name,
-    phone: guardian.phone,
-    active: guardian.active,
-    studentCount: studentCounts.get(guardian.id) ?? 0,
-    hasPrivateLink: guardian.access_token_hash !== null,
-  }));
+  if (!rows?.length && page > 1) {
+    const fallbackParams = new URLSearchParams();
+    if (search) fallbackParams.set("search", search);
+    if (status !== "all") fallbackParams.set("status", status);
+    fallbackParams.set("page", String(page - 1));
+    redirect(`/dashboard/contacts?${fallbackParams.toString()}`);
+  }
 
-  return <><PageHeader title="Contactos" description="Administra los acudientes y sus accesos privados." /><ContactsManager contacts={contacts} /></>;
+  const contacts: ContactListItem[] = (rows ?? []).map((row) => ({
+    id: row.id,
+    phone: row.phone,
+    active: row.active,
+    studentCount: row.student_count,
+    privateAccessToken: row.access_token,
+  }));
+  const total = rows?.[0]?.total_count ?? 0;
+
+  return <><PageHeader title="Contactos" description="Administra los acudientes y sus accesos privados." /><ContactsManager contacts={contacts} page={page} pageSize={PAGE_SIZE} search={search} status={status} total={total} /></>;
 }

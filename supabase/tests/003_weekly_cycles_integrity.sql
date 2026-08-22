@@ -29,16 +29,14 @@ begin
   exception when exclusion_violation then null;
   end;
 
-  update public.weekly_cycles set status = 'open', opened_at = now() where id = v_cycle_a;
-
-  begin
-    update public.weekly_cycles set status = 'open', opened_at = now() where id = v_cycle_b;
-    raise exception 'Expected a second open cycle to fail';
-  exception when unique_violation then null;
-  end;
+  if (select count(*) from public.weekly_cycles where id in (v_cycle_a, v_cycle_b) and status = 'open') <> 2 then
+    raise exception 'New non-overlapping cycles must be active by default';
+  end if;
 
   update public.weekly_cycles set status = 'closed', closed_at = now() where id = v_cycle_a;
-  update public.weekly_cycles set status = 'archived' where id = v_cycle_a;
+  if (select status from public.weekly_cycles where id = v_cycle_a) <> 'closed' then
+    raise exception 'A cycle must support deactivation';
+  end if;
 end;
 $$;
 

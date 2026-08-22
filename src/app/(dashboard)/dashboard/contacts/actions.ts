@@ -4,11 +4,11 @@ import { revalidatePath } from "next/cache";
 
 import { requireDashboardRoute } from "@/lib/auth/authorization";
 import { createClient } from "@/lib/supabase/server";
-import { createPrivateAccessToken, hashPrivateAccessToken } from "@/lib/utils/private-token";
 import { normalizeColombianPhone } from "@/lib/utils/phone";
 import {
   guardianIdSchema,
-  guardianSchema,
+  guardianCreationSchema,
+  pendingGuardianCreationSchema,
   guardianUpdateSchema,
   studentIdSchema,
   studentSchema,
@@ -16,12 +16,11 @@ import {
 } from "@/lib/validations/guardians";
 
 export type ContactActionResult =
-  | { success: true; guardianId?: string; tokenPath?: string }
+  | { success: true; guardianId?: string }
   | { success: false; error: string };
 
 function revalidateContacts(guardianId?: string) {
   revalidatePath("/dashboard/contacts");
-  revalidatePath("/dashboard/contactos");
   if (guardianId) {
     revalidatePath(`/dashboard/contacts/${guardianId}`);
   }
@@ -32,28 +31,30 @@ function isDuplicatePhone(error: { code?: string } | null) {
 }
 
 function isStudentLimitError(error: { message?: string } | null) {
-  return error?.message?.includes("maximum of four students") ?? false;
+  return error?.message?.includes("more than ten active students") ?? false;
 }
 
 export async function createGuardian(values: unknown): Promise<ContactActionResult> {
   await requireDashboardRoute("/dashboard/contacts");
-  const parsed = guardianSchema.safeParse(values);
+  const parsed = guardianCreationSchema.safeParse(values);
   const phone = parsed.success ? normalizeColombianPhone(parsed.data.phone) : null;
 
   if (!parsed.success || !phone) {
-    return { success: false, error: "Revisa el nombre y el número telefónico." };
+    return { success: false, error: "Revisa el nombre, celular y estudiantes del acudiente." };
   }
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("guardians")
-    .insert({ full_name: parsed.data.fullName, phone })
-    .select("id")
-    .single();
+  const { data, error } = await supabase.rpc("create_guardian_with_students", {
+    p_full_name: parsed.data.fullName,
+    p_phone: phone,
+    p_student_names: parsed.data.studentNames,
+  });
 
-  if (isDuplicatePhone(error)) {
+  if (isDuplicatePhone(error) || error?.message.includes("Ya existe un acudiente")) {
     return { success: false, error: "Ya existe un acudiente registrado con este número." };
   }
+
+  if (isStudentLimitError(error)) return { success: false, error: "Este acudiente ya tiene el máximo de 10 estudiantes activos." };
 
   if (error || !data) {
     console.error("No fue posible crear el acudiente.");
@@ -61,7 +62,23 @@ export async function createGuardian(values: unknown): Promise<ContactActionResu
   }
 
   revalidateContacts();
-  return { success: true, guardianId: data.id };
+  return { success: true, guardianId: data };
+}
+
+export async function createPendingGuardian(values: unknown): Promise<ContactActionResult> {
+  await requireDashboardRoute("/dashboard/contacts");
+  const parsed = pendingGuardianCreationSchema.safeParse(values);
+  const phone = parsed.success ? normalizeColombianPhone(parsed.data.phone) : null;
+  if (!parsed.success || !phone) return { success: false, error: "Ingresa un celular colombiano válido." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("create_pending_guardian", { p_phone: phone });
+  if (isDuplicatePhone(error) || error?.message.includes("Ya existe un acudiente")) return { success: false, error: "Ya existe un acudiente registrado con este número." };
+  if (error || !data) return { success: false, error: "No fue posible guardar el número del acudiente." };
+
+  revalidateContacts();
+  revalidatePath("/dashboard/tracking");
+  return { success: true, guardianId: data };
 }
 
 export async function updateGuardian(guardianId: string, values: unknown): Promise<ContactActionResult> {
@@ -77,7 +94,7 @@ export async function updateGuardian(guardianId: string, values: unknown): Promi
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("guardians")
-    .update({ full_name: parsed.data.fullName, phone, active: parsed.data.active })
+    .update({ full_name: parsed.data.fullName || null, phone, active: parsed.data.active })
     .eq("id", id.data)
     .select("id")
     .maybeSingle();
@@ -98,6 +115,14 @@ export async function updateGuardian(guardianId: string, values: unknown): Promi
 export async function deactivateGuardian(guardianId: string): Promise<ContactActionResult> {
   const result = await updateGuardianActive(guardianId, false);
   return result;
+}
+
+export async function deleteGuardian(guardianId: string): Promise<ContactActionResult> {
+  await requireDashboardRoute("/dashboard/contacts");
+  const id = guardianIdSchema.safeParse(guardianId); if (!id.success) return { success: false, error: "El acudiente seleccionado no es válido." };
+  const supabase = await createClient(); const { error } = await supabase.rpc("delete_guardian", { p_guardian_id: id.data });
+  if (error) return { success: false, error: "No fue posible eliminar el acudiente y sus datos relacionados." };
+  revalidateContacts(); revalidatePath("/dashboard/students"); revalidatePath("/dashboard/tracking"); return { success: true };
 }
 
 async function updateGuardianActive(guardianId: string, active: boolean): Promise<ContactActionResult> {
@@ -123,13 +148,14 @@ export async function createStudent(guardianId: string, values: unknown): Promis
   const { count, error: countError } = await supabase
     .from("students")
     .select("id", { count: "exact", head: true })
-    .eq("guardian_id", id.data);
+    .eq("guardian_id", id.data)
+    .eq("active", true);
 
   if (countError) return { success: false, error: "No fue posible verificar los estudiantes del acudiente." };
-  if ((count ?? 0) >= 4) return { success: false, error: "Este acudiente ya tiene el máximo de 4 estudiantes." };
+  if ((count ?? 0) >= 10) return { success: false, error: "Este acudiente ya tiene el máximo de 10 estudiantes activos." };
 
   const { error } = await supabase.from("students").insert({ guardian_id: id.data, full_name: parsed.data.fullName });
-  if (isStudentLimitError(error)) return { success: false, error: "Este acudiente ya tiene el máximo de 4 estudiantes." };
+  if (isStudentLimitError(error)) return { success: false, error: "Este acudiente ya tiene el máximo de 10 estudiantes activos." };
   if (error) {
     console.error("No fue posible crear el estudiante.");
     return { success: false, error: "No fue posible crear el estudiante." };
@@ -176,26 +202,10 @@ export async function deactivateStudent(studentId: string): Promise<ContactActio
   return { success: true };
 }
 
-export async function generateGuardianLink(guardianId: string): Promise<ContactActionResult> {
+export async function deleteStudent(studentId: string): Promise<ContactActionResult> {
   await requireDashboardRoute("/dashboard/contacts");
-  const id = guardianIdSchema.safeParse(guardianId);
-  if (!id.success) return { success: false, error: "El acudiente seleccionado no es válido." };
-
-  const token = createPrivateAccessToken();
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("guardians")
-    .update({ access_token_hash: hashPrivateAccessToken(token) })
-    .eq("id", id.data)
-    .eq("active", true)
-    .select("id")
-    .maybeSingle();
-
-  if (error || !data) {
-    console.error("No fue posible generar el enlace privado.");
-    return { success: false, error: "No fue posible generar el enlace privado." };
-  }
-
-  revalidateContacts(id.data);
-  return { success: true, tokenPath: `/clases/t/${token}` };
+  const id = studentIdSchema.safeParse(studentId); if (!id.success) return { success: false, error: "El estudiante seleccionado no es válido." };
+  const supabase = await createClient(); const { error } = await supabase.rpc("delete_student", { p_student_id: id.data });
+  if (error) return { success: false, error: "No fue posible eliminar el estudiante." };
+  revalidateContacts(); revalidatePath("/dashboard/students"); revalidatePath("/dashboard/tracking"); return { success: true };
 }
