@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidateDashboard } from "@/lib/dashboard/revalidate";
 
 import { createClient } from "@/lib/supabase/server";
 import { createPrivateAccessToken, hashPrivateAccessToken } from "@/lib/utils/private-token";
@@ -43,7 +44,7 @@ export async function activateGuardianCycleAccess(values: unknown): Promise<Acti
   const activatedToken = data?.[0]?.access_token;
   if (error || !activatedToken) return { success: false, error: friendlyActivationError(error?.message) };
 
-  revalidatePath("/dashboard/contacts");
-  revalidatePath("/dashboard/tracking");
+  revalidateDashboard();
+  revalidatePath(`/clases/t/${activatedToken}`);
   return { success: true, privateToken: activatedToken };
 }

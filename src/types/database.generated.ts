@@ -293,6 +293,7 @@ export type Database = {
       }
       guardian_cycle_invitations: {
         Row: {
+          registration_completed_at: string | null
           access_token: string | null
           active: boolean
           activated_at: string | null
@@ -305,6 +306,7 @@ export type Database = {
           token_hash: string
         }
         Insert: {
+          registration_completed_at?: string | null
           active?: boolean
           created_at?: string
           created_by?: string | null
@@ -315,6 +317,7 @@ export type Database = {
           token_hash: string
         }
         Update: {
+          registration_completed_at?: string | null
           active?: boolean
           created_at?: string
           created_by?: string | null
@@ -567,7 +570,7 @@ export type Database = {
           display_name: string
           id?: string
           notification_email?: string | null
-          profile_id: string
+          profile_id?: string
           updated_at?: string
         }
         Update: {
@@ -587,7 +590,7 @@ export type Database = {
           {
             foreignKeyName: "teachers_profile_id_fkey"
             columns: ["profile_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -720,6 +723,14 @@ export type Database = {
       create_pending_guardian: {
         Args: { p_phone: string }
         Returns: string
+      }
+      ensure_staff_guardian_access: {
+        Args: { p_guardian_id: string; p_cycle_id?: string }
+        Returns: string | null
+      }
+      complete_private_guardian_profile: {
+        Args: { p_token_hash: string; p_full_name: string; p_student_names: Json }
+        Returns: undefined
       }
       current_teacher_id: { Args: never; Returns: string }
       current_user_role: {

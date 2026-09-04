@@ -5,11 +5,13 @@ import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tan
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useWatch, useForm } from "react-hook-form";
 import { CalendarPlus, Eye, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { createCycle, deleteCycle, setCycleActive } from "@/app/(dashboard)/dashboard/cycles/actions";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Button } from "@/components/ui/button";
+import { useConfirmation } from "@/components/ui/confirmation-dialog";
 import { type WeeklyCycleStatus } from "@/lib/cycles/constants";
 import { formatBogotaDate, formatBogotaDateTime, nextWeekCycleDates } from "@/lib/cycles/dates";
 import { weeklyCycleSchema, type WeeklyCycleValues } from "@/lib/validations/cycles";
@@ -24,7 +26,8 @@ export interface CycleListItem {
   status: WeeklyCycleStatus;
 }
 
-export function CyclesManager({ cycles }: Readonly<{ cycles: CycleListItem[] }>) {
+export function CyclesManager({ cycles, canDelete }: Readonly<{ cycles: CycleListItem[]; canDelete: boolean }>) {
+  const confirm = useConfirmation();
   const router = useRouter();
   const [showCreate, setShowCreate] = useState(false);
   const [filter, setFilter] = useState<"all" | "open" | "closed">("all");
@@ -49,12 +52,12 @@ export function CyclesManager({ cycles }: Readonly<{ cycles: CycleListItem[] }>)
       }
       form.reset();
       setShowCreate(false);
-      router.push("/dashboard/cycles");
+      router.refresh();
     });
   }
 
-  function onDelete(cycle: CycleListItem) {
-    if (!window.confirm(`¿Eliminar permanentemente ${cycle.name}, sus clases, inscripciones e invitaciones? Esta acción no se puede deshacer.`)) return;
+  async function onDelete(cycle: CycleListItem) {
+    if (!(await confirm({ title: "Eliminar ciclo", description: `Se eliminará el ciclo “${cycle.name}”, junto con sus clases, inscripciones e invitaciones.`, confirmLabel: "Eliminar ciclo" }))) return;
     setError(undefined);
     setPendingId(cycle.id);
     startTransition(async () => {
@@ -66,7 +69,6 @@ export function CyclesManager({ cycles }: Readonly<{ cycles: CycleListItem[] }>)
 
   function toggleActive(cycle: CycleListItem) {
     const active = cycle.status !== "open";
-    if (!window.confirm(`${active ? "¿Activar" : "¿Desactivar"} ${cycle.name}?${active ? " Podrás asociarle clases." : " No podrás asociarle nuevas clases."}`)) return;
     setError(undefined);
     setPendingId(cycle.id);
     startTransition(async () => {
@@ -103,7 +105,7 @@ export function CyclesManager({ cycles }: Readonly<{ cycles: CycleListItem[] }>)
       header: "Estado",
       cell: ({ row }) => {
         const active = row.original.status === "open";
-        const pending = isPending && pendingId === row.original.id;
+        const pending = isPending;
         return <div className="flex items-center gap-2.5">
           <button
             aria-checked={active}
@@ -127,7 +129,7 @@ export function CyclesManager({ cycles }: Readonly<{ cycles: CycleListItem[] }>)
       cell: ({ row }) => <div className="flex items-center gap-1.5">
         <Button asChild aria-label={`Ver ${row.original.name}`} size="icon" title="Ver ciclo" variant="outline"><Link href={`/dashboard/cycles/${row.original.id}`}><Eye aria-hidden="true" /></Link></Button>
         <Button asChild aria-label={`Editar ${row.original.name}`} size="icon" title="Editar ciclo" variant="outline"><Link href={`/dashboard/cycles/${row.original.id}/edit`}><Pencil aria-hidden="true" /></Link></Button>
-        <Button aria-label={`Eliminar ${row.original.name}`} className="border border-transparent bg-transparent text-rose-500 hover:border-rose-100 hover:bg-rose-50 hover:text-rose-600" disabled={isPending && pendingId === row.original.id} onClick={() => onDelete(row.original)} size="icon" title="Eliminar ciclo" type="button" variant="destructive"><Trash2 aria-hidden="true" /></Button>
+        {canDelete ? <Button aria-label={`Eliminar ${row.original.name}`} className="border border-transparent bg-transparent text-rose-500 hover:border-rose-100 hover:bg-rose-50 hover:text-rose-600" disabled={isPending && pendingId === row.original.id} onClick={() => onDelete(row.original)} size="icon" title="Eliminar ciclo" type="button" variant="destructive"><Trash2 aria-hidden="true" /></Button> : null}
       </div>,
     },
   ];
@@ -155,5 +157,8 @@ export function CyclesManager({ cycles }: Readonly<{ cycles: CycleListItem[] }>)
 
 function DateField({ form, id, label, name }: Readonly<{ form: ReturnType<typeof useForm<WeeklyCycleValues>>; id: string; label: string; name: keyof Pick<WeeklyCycleValues, "startsAt" | "endsAt" | "registrationOpensAt" | "registrationClosesAt"> }>) {
   const error = form.formState.errors[name];
-  return <div className="space-y-2"><label className="text-sm font-medium" htmlFor={id}>{label} <span className="text-muted-foreground">(Bogotá)</span></label><input className="h-10 w-full rounded-lg border bg-background px-3 text-sm" id={id} type="datetime-local" {...form.register(name)} />{error ? <p className="text-sm text-destructive" role="alert">{error.message}</p> : null}</div>;
+  const values = useWatch({ control: form.control });
+  const min = name === "endsAt" ? values.startsAt : name === "registrationClosesAt" ? values.registrationOpensAt : undefined;
+  const max = name === "startsAt" || name === "registrationClosesAt" ? values.endsAt : name === "registrationOpensAt" ? values.registrationClosesAt : undefined;
+  return <div className="space-y-2"><label className="text-sm font-medium" htmlFor={id}>{label} <span className="text-muted-foreground">(Bogotá)</span></label><Controller control={form.control} name={name} render={({ field }) => <DateTimePicker {...field} id={id} label={label} min={min} max={max} invalid={Boolean(error)} />} />{error ? <p className="text-sm text-destructive" role="alert">{error.message}</p> : null}</div>;
 }

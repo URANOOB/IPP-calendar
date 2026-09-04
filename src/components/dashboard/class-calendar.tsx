@@ -91,7 +91,7 @@ export function ClassCalendar({ classes, cycles }: Readonly<{ classes: Dashboard
     {cycles.length ? <div className="flex flex-wrap gap-2 border-b border-border/70 px-5 py-3 sm:px-6">{cycles.map((cycle, index) => <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${colorClasses[index % colorClasses.length]}`} key={cycle.id}>{cycle.name} · {cycle.status === "open" ? "Activo" : "Inactivo"}</span>)}</div> : null}
 
     <div className="overflow-x-auto"><div className="min-w-[760px] p-3 sm:p-5"><div className="grid grid-cols-7 border-l border-t border-border/70">{weekdayLabels.map((label) => <div className="border-b border-r border-border/70 bg-muted/35 px-3 py-2 text-center text-xs font-bold text-muted-foreground" key={label}>{label}</div>)}{days.map((day) => {
-      const key = dateKey(day);
+      const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
       const dayClasses = classByDate.get(key) ?? [];
       const isCurrentMonth = day.getMonth() === month.getMonth();
       const isSelected = key === selectedDate;

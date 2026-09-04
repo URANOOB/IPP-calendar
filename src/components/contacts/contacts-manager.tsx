@@ -10,6 +10,7 @@ import { Pencil, Plus, Power, Trash2 } from "lucide-react";
 
 import { createPendingGuardian, deactivateGuardian, deleteGuardian } from "@/app/(dashboard)/dashboard/contacts/actions";
 import { Button } from "@/components/ui/button";
+import { useConfirmation } from "@/components/ui/confirmation-dialog";
 import { formatColombianPhone } from "@/lib/utils/phone";
 import { useBrowserOrigin } from "@/lib/hooks/use-browser-origin";
 import { pendingGuardianCreationSchema, type PendingGuardianCreationValues } from "@/lib/validations/guardians";
@@ -17,6 +18,7 @@ import { pendingGuardianCreationSchema, type PendingGuardianCreationValues } fro
 export interface ContactListItem {
   id: string;
   phone: string;
+  fullName: string | null;
   active: boolean;
   studentCount: number;
   privateAccessToken: string | null;
@@ -25,6 +27,7 @@ export interface ContactListItem {
 type ContactStatus = "all" | "active" | "inactive";
 
 interface ContactsManagerProps {
+  canDelete: boolean;
   contacts: ContactListItem[];
   page: number;
   pageSize: number;
@@ -33,7 +36,8 @@ interface ContactsManagerProps {
   total: number;
 }
 
-export function ContactsManager({ contacts, page, pageSize, search, status, total }: Readonly<ContactsManagerProps>) {
+export function ContactsManager({ canDelete, contacts, page, pageSize, search, status, total }: Readonly<ContactsManagerProps>) {
+  const confirm = useConfirmation();
   const router = useRouter();
   const [showCreate, setShowCreate] = useState(false);
   const [actionError, setActionError] = useState<string>();
@@ -45,6 +49,7 @@ export function ContactsManager({ contacts, page, pageSize, search, status, tota
   const generalRegistrationLink = origin ? `${origin}/registro` : "";
 
   const columns: ColumnDef<ContactListItem>[] = [
+    { accessorKey: "fullName", header: "Acudiente", cell: ({ row }) => row.original.fullName || "Pendiente de completar" },
     { accessorKey: "phone", header: "Teléfono", cell: ({ row }) => formatColombianPhone(row.original.phone) },
     { accessorKey: "studentCount", header: "Niños", cell: ({ row }) => `${row.original.studentCount} ${row.original.studentCount === 1 ? "niño" : "niños"}` },
     {
@@ -62,7 +67,7 @@ export function ContactsManager({ contacts, page, pageSize, search, status, tota
           {row.original.active ? (
             <Button aria-label={`Desactivar acudiente ${formatColombianPhone(row.original.phone)}`} disabled={isPending && pendingId === row.original.id} onClick={() => onDeactivate(row.original)} size="icon" title="Desactivar acudiente" type="button" variant="outline"><Power aria-hidden="true" /></Button>
           ) : null}
-          <Button aria-label={`Eliminar acudiente ${formatColombianPhone(row.original.phone)}`} className="border border-transparent bg-transparent text-rose-500 hover:border-rose-100 hover:bg-rose-50 hover:text-rose-600" disabled={isPending && pendingId === row.original.id} onClick={() => onDelete(row.original)} size="icon" title="Eliminar acudiente" type="button" variant="destructive"><Trash2 aria-hidden="true" /></Button>
+          {canDelete ? <Button aria-label={`Eliminar acudiente ${formatColombianPhone(row.original.phone)}`} className="border border-transparent bg-transparent text-rose-500 hover:border-rose-100 hover:bg-rose-50 hover:text-rose-600" disabled={isPending && pendingId === row.original.id} onClick={() => onDelete(row.original)} size="icon" title="Eliminar acudiente" type="button" variant="destructive"><Trash2 aria-hidden="true" /></Button> : null}
         </div>
       ),
     },
@@ -85,8 +90,8 @@ export function ContactsManager({ contacts, page, pageSize, search, status, tota
     return query ? `/dashboard/contacts?${query}` : "/dashboard/contacts";
   };
 
-  function onDeactivate(contact: ContactListItem) {
-    if (!window.confirm(`¿Desactivar el acudiente ${formatColombianPhone(contact.phone)}? Su enlace privado dejará de estar disponible.`)) return;
+  async function onDeactivate(contact: ContactListItem) {
+    if (!(await confirm({ title: "Desactivar acudiente", description: `Se desactivará a ${contact.fullName || formatColombianPhone(contact.phone)}. Su enlace privado dejará de estar disponible.`, confirmLabel: "Desactivar", variant: "warning" }))) return;
     setActionError(undefined);
     setPendingId(contact.id);
     startTransition(async () => {
@@ -107,18 +112,20 @@ export function ContactsManager({ contacts, page, pageSize, search, status, tota
       }
       form.reset();
       setShowCreate(false);
+      if (result.warning) setActionError(result.warning);
+      else if (result.guardianId) router.push(`/dashboard/contacts/${result.guardianId}`);
       router.refresh();
     });
   }
 
-  function onDelete(contact: ContactListItem) {
-    if (!window.confirm(`¿Eliminar permanentemente el acudiente ${formatColombianPhone(contact.phone)}, sus estudiantes, inscripciones e invitaciones? Esta acción no se puede deshacer.`)) return;
+  async function onDelete(contact: ContactListItem) {
+    if (!(await confirm({ title: "Eliminar acudiente", description: `Se eliminará a ${contact.fullName || formatColombianPhone(contact.phone)}, junto con sus estudiantes, inscripciones e invitaciones.`, confirmLabel: "Eliminar acudiente" }))) return;
     setActionError(undefined); setPendingId(contact.id); startTransition(async () => { const result = await deleteGuardian(contact.id); setPendingId(undefined); if (!result.success) setActionError(result.error); else router.refresh(); });
   }
 
   async function copyGeneralRegistrationLink() {
     if (!generalRegistrationLink) return;
-    await navigator.clipboard.writeText(generalRegistrationLink);
+    try { await navigator.clipboard.writeText(generalRegistrationLink); } catch { setActionError("No fue posible copiar. Selecciona el enlace y cópialo manualmente."); return; }
     setGeneralLinkCopied(true);
     window.setTimeout(() => setGeneralLinkCopied(false), 1800);
   }
@@ -130,7 +137,7 @@ export function ContactsManager({ contacts, page, pageSize, search, status, tota
         <div className="flex flex-col gap-3 sm:flex-row">
           <label className="sr-only" htmlFor="contact-search">Buscar acudiente</label>
           <form className="flex gap-2" method="get">
-            <input className="h-10 min-w-0 rounded-lg border bg-card px-3 text-sm" defaultValue={search} id="contact-search" name="search" placeholder="Buscar por teléfono" />
+            <input className="h-10 min-w-0 rounded-lg border bg-card px-3 text-sm" defaultValue={search} id="contact-search" name="search" placeholder="Buscar por nombre o teléfono" />
             {status !== "all" ? <input name="status" type="hidden" value={status} /> : null}
             <Button type="submit" variant="outline">Buscar</Button>
           </form>
@@ -150,7 +157,7 @@ export function ContactsManager({ contacts, page, pageSize, search, status, tota
       {showCreate ? (
         <form className="grid gap-4 rounded-xl border bg-card p-5" noValidate onSubmit={form.handleSubmit(onCreate)}>
           <div className="space-y-2"><label className="text-sm font-medium" htmlFor="guardian-phone">Celular</label><input className="h-10 w-full rounded-lg border bg-background px-3 text-sm" id="guardian-phone" inputMode="tel" placeholder="300 123 4567" {...form.register("phone")} />{form.formState.errors.phone ? <p className="text-sm text-destructive" role="alert">{form.formState.errors.phone.message}</p> : null}</div>
-          <div><p className="text-sm text-muted-foreground">Guardaremos solo el celular. El acudiente completará su nombre y los datos de sus niños al registrarse desde el enlace general.</p><Button className="mt-4" disabled={isPending} type="submit">{isPending ? "Guardando…" : "Guardar número"}</Button></div>
+          <div><p className="text-sm text-muted-foreground">Solo necesitas el celular. Comparte el enlace general /registro para que complete su nombre y sus estudiantes. Después aparecerá su enlace privado.</p><Button className="mt-4" disabled={isPending} type="submit">{isPending ? "Guardando…" : "Guardar número"}</Button></div>
         </form>
       ) : null}
 
@@ -176,13 +183,14 @@ export function ContactsManager({ contacts, page, pageSize, search, status, tota
 
 function PrivateLinkCell({ accessToken, origin }: Readonly<{ accessToken: string | null; origin: string }>) {
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
   if (!accessToken) return "Sin generar";
   const link = origin ? `${origin}/clases/t/${accessToken}` : "";
   async function copy() {
     if (!link) return;
-    await navigator.clipboard.writeText(link);
+    try { await navigator.clipboard.writeText(link); setCopyError(false); } catch { setCopyError(true); return; }
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
   }
-  return <div className="flex items-center gap-2"><span className="max-w-28 truncate text-muted-foreground" title={link}>Generado</span><Button disabled={!link} onClick={() => void copy()} size="default" type="button" variant="outline">{copied ? "Copiado" : "Copiar"}</Button></div>;
+  return <div className="flex flex-wrap items-center gap-2">{copyError ? <input aria-label="Enlace para copiar manualmente" readOnly value={link} onFocus={(event) => event.currentTarget.select()} /> : null}<span className="max-w-28 truncate text-muted-foreground" title={link}>Generado</span><Button disabled={!link} onClick={() => void copy()} size="default" type="button" variant="outline">{copied ? "Copiado" : "Copiar"}</Button></div>;
 }

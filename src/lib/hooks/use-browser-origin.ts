@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
+
+// The origin cannot change without loading a new document.
+const subscribe = () => () => {};
+const getSnapshot = () => window.location.origin;
+// React also uses this snapshot for the client's first hydration render.
+const getServerSnapshot = () => "";
 
 /** Returns the browser origin without creating a server/client hydration mismatch. */
 export function useBrowserOrigin() {
-  const [origin, setOrigin] = useState("");
-  useEffect(() => {
-    const timeout = window.setTimeout(() => setOrigin(window.location.origin), 0);
-    return () => window.clearTimeout(timeout);
-  }, []);
-  return origin;
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }

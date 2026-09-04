@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidateDashboard } from "@/lib/dashboard/revalidate";
 import { z } from "zod";
 
 import { requireDashboardRoute } from "@/lib/auth/authorization";
@@ -8,7 +9,7 @@ import { guardianIdSchema } from "@/lib/validations/guardians";
 import { createClient } from "@/lib/supabase/server";
 
 type TrackingResult = { success: true; message?: string } | { success: false; error: string };
-const refresh = () => { revalidatePath("/dashboard/tracking"); revalidatePath("/dashboard/contacts"); };
+const refresh = () => { revalidateDashboard(); revalidatePath("/dashboard/tracking"); revalidatePath("/dashboard/contacts"); };
 const reminderLeadMinutes = [15, 30, 45, 60, 90, 120, 180, 240, 360, 480, 720, 1440] as const;
 const reminderLeadSchema = z.number().int().refine((value) => reminderLeadMinutes.includes(value as typeof reminderLeadMinutes[number]), "La anticipación del recordatorio no es válida.");
 const reminderSettingsSchema = z.object({ firstEnabled: z.boolean(), firstLeadMinutes: reminderLeadSchema, secondEnabled: z.boolean(), secondLeadMinutes: reminderLeadSchema }).refine((value) => !value.firstEnabled || !value.secondEnabled || value.firstLeadMinutes !== value.secondLeadMinutes, { message: "Los recordatorios activos deben tener anticipaciones diferentes." });
@@ -28,6 +29,7 @@ export async function markFirstContact(guardianId: string): Promise<TrackingResu
 }
 
 export async function updateContactResponse(guardianId: string, response: "no_response" | "interested" | "declined"): Promise<TrackingResult> {
+  if (!["no_response", "interested", "declined"].includes(response)) return { success: false, error: "Selecciona una respuesta válida." };
   await requireDashboardRoute("/dashboard/tracking"); const parsed = guardianIdSchema.safeParse(guardianId); if (!parsed.success) return { success: false, error: "El contacto no es válido." };
   const supabase = await createClient(); const { data: tracking, error: trackingError } = await supabase.from("contact_tracking").select("registered_from_public_at").eq("guardian_id", parsed.data).maybeSingle();
   if (trackingError || !tracking) return { success: false, error: "No pudimos actualizar el seguimiento." };
@@ -39,7 +41,7 @@ export async function updateContactResponse(guardianId: string, response: "no_re
 }
 
 export async function addContactNote(guardianId: string, note: string): Promise<TrackingResult> {
-  await requireDashboardRoute("/dashboard/tracking"); const parsed = guardianIdSchema.safeParse(guardianId); const clean = note.trim().slice(0, 1000); if (!parsed.success || !clean) return { success: false, error: "Escribe una nota válida." };
+  await requireDashboardRoute("/dashboard/tracking"); const parsed = guardianIdSchema.safeParse(guardianId); const clean = typeof note === "string" ? note.trim().slice(0, 1000) : ""; if (!parsed.success || !clean) return { success: false, error: "Escribe una nota válida." };
   if ((await event(parsed.data, "note_added", { note: clean })).error) return { success: false, error: "No pudimos guardar la nota." }; refresh(); return { success: true };
 }
 

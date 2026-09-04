@@ -1,5 +1,5 @@
--- The dashboard has one operational role for now. Teacher records remain
--- available to assign classes, but they no longer imply a staff login role.
+-- Teacher records remain available to assign classes, but they do not imply a
+-- staff login role. Keep the explicit admin/manager split intact.
 create or replace function public.prevent_teacher_profile_role_change()
 returns trigger
 language plpgsql
@@ -24,13 +24,6 @@ begin
   return new;
 end;
 $$;
-
-update public.profiles
-set role = 'admin'
-where role <> 'admin';
-
-alter table public.profiles
-  alter column role set default 'admin';
 
 create or replace function public.admin_teacher_candidates()
 returns table (profile_id uuid, full_name text, email text)

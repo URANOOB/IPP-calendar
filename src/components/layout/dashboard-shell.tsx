@@ -57,7 +57,7 @@ export function DashboardShell({ activity, children, user }: Readonly<{ activity
             </span>
             <div className="flex flex-col leading-tight">
               <span className="text-lg">IPP agenda</span>
-              <span className="text-xs font-medium text-white/70 capitalize">{user.role}</span>
+              <span className="text-xs font-medium text-white/90">{user.role === "manager" ? "Gestor" : "Administrador"}</span>
             </div>
           </Link>
           <Button aria-label="Cerrar navegación" className="text-white hover:bg-white/15 hover:text-white lg:hidden" onClick={() => setMobileOpen(false)} size="icon" variant="ghost">
@@ -96,7 +96,7 @@ export function DashboardShell({ activity, children, user }: Readonly<{ activity
           </Button>
           <div className="ml-auto flex items-center gap-2">
             <GlobalSearch />
-            <NotificationCenter initialActivity={activity} />
+            <NotificationCenter initialActivity={activity} canManage={user.role === "admin" || user.role === "manager"} />
           </div>
           <div className="mx-1 sm:mx-3" />
           <form action={signOut}>
