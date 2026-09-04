@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidateDashboard } from "@/lib/dashboard/revalidate";
 
 import { bogotaInputToUtc } from "@/lib/cycles/dates";
 import { requireDashboardRoute } from "@/lib/auth/authorization";
@@ -11,13 +12,14 @@ import { cycleIdSchema, weeklyCycleSchema } from "@/lib/validations/cycles";
 export type CycleActionResult = { success: true; cycleId?: string } | { success: false; error: string };
 
 function refreshCycles(cycleId?: string) {
+  revalidateDashboard();
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/cycles");
   if (cycleId) revalidatePath(`/dashboard/cycles/${cycleId}`);
 }
 
 function cycleDatabaseError(error: { code?: string; constraint?: string; message?: string } | null): string | null {
-  if (error?.code === "23P01" && error.constraint === "weekly_cycles_no_registration_window_overlap") {
+  if (error?.code === "23P01" && (error.constraint === "weekly_cycles_no_registration_window_overlap" || error.message?.includes("weekly_cycles_no_registration_window_overlap"))) {
     return "La ventana de inscripción se superpone con otro ciclo activo.";
   }
   if (error?.code === "23P01") return "Las fechas de este ciclo se superponen con otra semana.";

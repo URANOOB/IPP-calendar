@@ -32,8 +32,12 @@ export async function searchPlatform(value: string): Promise<PlatformSearchResul
     supabase.from("students").select("id, full_name").ilike("full_name", pattern).limit(6),
     supabase.from("teachers").select("id, display_name, notification_email").or(`display_name.ilike.${pattern},notification_email.ilike.${pattern}`).limit(6),
     supabase.from("classes").select("id, title, description").or(`title.ilike.${pattern},description.ilike.${pattern}`).limit(6),
-    supabase.from("weekly_cycles").select("id, name, status").or(`name.ilike.${pattern},status.ilike.${pattern}`).limit(6),
+    supabase.from("weekly_cycles").select("id, name, status").ilike("name", pattern).limit(6),
   ]);
+
+  if ([guardians, students, teachers, classes, cycles].some((result) => result.error)) {
+    throw new Error("No se pudo completar la búsqueda.");
+  }
 
   return [
     ...(guardians.data ?? []).map((item) => ({ id: item.id, label: item.full_name ?? item.phone, description: item.phone, href: `/dashboard/contacts/${item.id}`, type: "Acudiente" as const })),
@@ -44,13 +48,25 @@ export async function searchPlatform(value: string): Promise<PlatformSearchResul
   ];
 }
 
-export async function deletePlatformActivity(activityId: string): Promise<{ success: boolean }> {
+export async function deletePlatformActivity(activityId: string): Promise<{ success: boolean; error?: string }> {
   await requireDashboardRoute("/dashboard");
   const parsed = idSchema.safeParse(activityId);
   if (!parsed.success) return { success: false };
   const supabase = await createClient();
   const { error } = await supabase.from("platform_activity").delete().eq("id", parsed.data);
   if (error) return { success: false };
+  revalidatePath("/dashboard", "layout");
+  return { success: true };
+}
+
+export async function clearPlatformActivity(through: string): Promise<{ success: boolean; error?: string }> {
+  await requireDashboardRoute("/dashboard");
+  const parsed = z.string().datetime({ offset: true }).safeParse(through);
+  if (!parsed.success || new Date(parsed.data).getTime() > Date.now()) return { success: false, error: "No se pudo validar la fecha de las notificaciones." };
+  const supabase = await createClient();
+  // Preserve activity that arrives after the newest notification in the user's view.
+  const { error } = await supabase.from("platform_activity").delete().lte("created_at", parsed.data);
+  if (error) return { success: false, error: "No se pudieron limpiar las notificaciones. Intenta nuevamente." };
   revalidatePath("/dashboard", "layout");
   return { success: true };
 }

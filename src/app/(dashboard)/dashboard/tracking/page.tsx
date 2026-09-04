@@ -8,19 +8,22 @@ export const metadata = { title: "Seguimiento" };
 
 export default async function TrackingPage() {
   await requireDashboardRoute("/dashboard/tracking"); const supabase = await createClient();
-  const [{ data: guardians }, { data: tracking }, { data: students }, { data: registrations }, { data: classes }, { data: events }, { data: reminderSettings }] = await Promise.all([
+  const results = await Promise.all([
     supabase.from("guardians").select("id, full_name, phone").order("full_name"),
     supabase.from("contact_tracking").select("guardian_id, first_contact_at, invitation_sent_at, registered_from_public_at, response_status"),
     supabase.from("students").select("id, guardian_id, full_name"),
     supabase.from("registrations").select("id, student_id, class_id, status").in("status", ["pending", "confirmed", "attended", "absent"]),
-    supabase.from("classes").select("id, title, teacher_id, starts_at, ends_at").order("starts_at"),
+    supabase.from("classes").select("id, title, teacher_id, starts_at, ends_at, status").order("starts_at"),
     supabase.from("contact_events").select("id, guardian_id, event_type, metadata, created_at").order("created_at", { ascending: false }),
     supabase.from("class_reminder_settings").select("first_enabled, first_lead_minutes, second_enabled, second_lead_minutes").eq("singleton", true).maybeSingle(),
   ]);
+  if (results.some((result) => "error" in result && result.error)) throw new Error("No fue posible cargar los datos de esta sección.");
+  const [{ data: guardians }, { data: tracking }, { data: students }, { data: registrations }, { data: classes }, { data: events }, { data: reminderSettings }] = results;
+  const now = new Date();
   const rows: TrackingRow[] = (guardians ?? []).map((guardian) => {
     const item = tracking?.find((entry) => entry.guardian_id === guardian.id);
     const guardianStudents = students?.filter((student) => student.guardian_id === guardian.id) ?? [];
-    const guardianRegistrations = registrations?.filter((registration) => guardianStudents.some((student) => student.id === registration.student_id)) ?? [];
+    const guardianRegistrations = registrations?.filter((registration) => guardianStudents.some((student) => student.id === registration.student_id) && classes?.some((item) => item.id === registration.class_id && item.status === "published" && new Date(item.ends_at) > now)) ?? [];
     const nextRegistration = guardianRegistrations
       .map((registration) => ({ registration, classItem: classes?.find((classItem) => classItem.id === registration.class_id) }))
       .filter((entry): entry is { registration: NonNullable<typeof guardianRegistrations>[number]; classItem: NonNullable<typeof classes>[number] } => Boolean(entry.classItem))

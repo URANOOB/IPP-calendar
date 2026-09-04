@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@daypicker/react/style.css";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
@@ -67,10 +68,14 @@ body {
   background-color: rgb(255 255 255 / 0.94);
   background-image:
     linear-gradient(rgb(255 255 255 / 0.9), rgb(255 255 255 / 0.9)),
-    url("/images/journey-pattern.png");
-  background-position: center, left center;
-  background-repeat: no-repeat, repeat;
-  background-size: 100% 100%, 22rem auto;
+    linear-gradient(145deg, #7f727b 10%, #d6b4c2 10.5% 19%, transparent 19.5% 80.5%, #d6b4c2 81% 89.5%, #baa0ab 90%),
+    linear-gradient(145deg, #7f727b 10%, #d6b4c2 10.5% 19%, transparent 19.5% 80.5%, #d6b4c2 81% 89.5%, #baa0ab 90%) 111px 222px,
+    linear-gradient(35deg, #7f727b 10%, #d6b4c2 10.5% 19%, transparent 19.5% 80.5%, #d6b4c2 81% 89.5%, #baa0ab 90%),
+    linear-gradient(35deg, #7f727b 10%, #d6b4c2 10.5% 19%, transparent 19.5% 80.5%, #d6b4c2 81% 89.5%, #baa0ab 90%) 111px 222px,
+    conic-gradient(from -90deg at 37.5% 50%, transparent 75%, #7f727b 0) 27.75px 0,
+    conic-gradient(from -90deg at 37.5% 50%, transparent 75%, #baa0ab 0) 111px 0,
+    linear-gradient(90deg, #baa0ab 38%, #7f727b 0 50%, #baa0ab 0 62%, #7f727b 0);
+  background-size: 222px 148px;
 }
 
 .sidebar-dolphin {
@@ -145,4 +150,38 @@ input:focus, select:focus, textarea:focus {
   fill: #9e9ea7;
   width: 1rem;
   height: 1rem;
+}
+
+/* Shared calendar, used by every date/time field rather than the OS picker. */
+.ipp-calendar {
+  --rdp-accent-color: var(--primary);
+  --rdp-accent-background-color: var(--secondary);
+  --rdp-day-width: 40px;
+  --rdp-day-height: 40px;
+  --rdp-day_button-width: 38px;
+  --rdp-day_button-height: 38px;
+  --rdp-day_button-border-radius: 11px;
+  --rdp-disabled-opacity: 0.3;
+  --rdp-outside-opacity: 0.4;
+  --rdp-dropdown-gap: 0.35rem;
+  font-size: 0.875rem;
+}
+
+.ipp-calendar .rdp-months { justify-content: center; }
+.ipp-calendar .rdp-caption_label { font-size: 0.875rem; font-weight: 700; text-transform: capitalize; }
+.ipp-calendar .rdp-dropdown_root { border-radius: 8px; padding: 4px; }
+.ipp-calendar .rdp-dropdown_root:hover { background: var(--muted); }
+.ipp-calendar .rdp-weekday { color: var(--muted-foreground); font-size: 0.75rem; font-weight: 600; }
+.ipp-calendar .rdp-day_button { font-size: 0.875rem; transition: background-color 120ms; }
+.ipp-calendar .rdp-day_button:not(:disabled):hover { background: var(--secondary); }
+.ipp-calendar .rdp-selected .rdp-day_button,
+.ipp-calendar .rdp-selected .rdp-day_button:hover { background: var(--primary); color: white; font-weight: 700; }
+.ipp-calendar .rdp-button_previous,
+.ipp-calendar .rdp-button_next { border-radius: 10px; }
+.ipp-calendar .rdp-button_previous:not(:disabled):hover,
+.ipp-calendar .rdp-button_next:not(:disabled):hover { background: var(--secondary); }
+.ipp-date-picker { overscroll-behavior: contain; }
+
+@media (max-width: 359px) {
+  .ipp-calendar { --rdp-day-width: 36px; --rdp-day_button-width: 34px; }
 }

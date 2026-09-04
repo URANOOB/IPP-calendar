@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidateDashboard } from "@/lib/dashboard/revalidate";
 
 import { requireDashboardRoute } from "@/lib/auth/authorization";
 import { requireRole } from "@/lib/auth/user";
@@ -17,10 +18,11 @@ import {
 } from "@/lib/validations/guardians";
 
 export type ContactActionResult =
-  | { success: true; guardianId?: string }
+  | { success: true; guardianId?: string; warning?: string }
   | { success: false; error: string };
 
 function revalidateContacts(guardianId?: string) {
+  revalidateDashboard();
   revalidatePath("/dashboard/contacts");
   if (guardianId) {
     revalidatePath(`/dashboard/contacts/${guardianId}`);
@@ -179,6 +181,7 @@ export async function updateStudent(studentId: string, values: unknown): Promise
     .eq("id", id.data)
     .select("guardian_id")
     .maybeSingle();
+  if (isStudentLimitError(error)) return { success: false, error: "Este acudiente ya tiene el máximo de 10 estudiantes activos." };
   if (error || !data) return { success: false, error: "No fue posible actualizar el estudiante." };
 
   revalidateContacts(data.guardian_id);
